@@ -1,4 +1,4 @@
-﻿using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using System.Linq;
 
 namespace GoogleCalendarNotifier
 {
@@ -85,10 +87,11 @@ namespace GoogleCalendarNotifier
                     {
                         reminderTime = TimeSpan.FromMinutes(30);
                     }
-                    else if (item.Reminders?.Overrides?.FirstOrDefault()?.Minutes.HasValue == true)
+                    else if (item.Reminders?.Overrides?.FirstOrDefault()?.Minutes is int minutes)
                     {
-                        reminderTime = TimeSpan.FromMinutes(item.Reminders.Overrides.First().Minutes.Value);
+                        reminderTime = TimeSpan.FromMinutes(minutes);
                     }
+
 
                     events.Add(new CalendarEvent
                     {
@@ -109,6 +112,5 @@ namespace GoogleCalendarNotifier
                 throw new InvalidOperationException($"Failed to fetch calendar events: {ex.Message}", ex);
             }
         }
-
     }
 }

@@ -1,25 +1,23 @@
-using GoogleCalendarNotifier.Notifications;
+using System;
 
 namespace GoogleCalendarNotifier
 {
-    static class Program
+    public class Program
     {
         [STAThread]
-        static void Main()
+        public static void Main()
         {
-            ApplicationConfiguration.Initialize();
-
-            var calendarService = new GoogleCalendarService();
-            var notificationService = new WindowsNotificationService();
-            var eventTracker = new EventTrackingService();
-            var settingsManager = new SettingsManager();
-
-            var monitorService = new CalendarMonitorService(
-                calendarService,
-                notificationService,
-                eventTracker);
-
-            Application.Run(new MainForm(calendarService, monitorService, settingsManager));
+            try
+            {
+                var application = new App();
+                application.InitializeComponent();
+                application.Run();
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Application Error: {ex.Message}", "Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
         }
     }
 }

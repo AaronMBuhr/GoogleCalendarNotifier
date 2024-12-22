@@ -1,0 +1,90 @@
+<mah:MetroWindow x:Class="GoogleCalendarNotifier.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:GoogleCalendarNotifier"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        mc:Ignorable="d"
+        Title="Calendar Notifications" 
+        Height="600" Width="900"
+        MinHeight="600" MinWidth="900"
+        ShowTitleBar="True"
+        WindowTitleBrush="{StaticResource CustomBackgroundBrush}"
+        NonActiveWindowTitleBrush="{StaticResource CustomSecondaryBrush}"
+        GlowBrush="{StaticResource CustomAccentBrush}"
+        Background="{StaticResource CustomBackgroundBrush}"
+        WindowStartupLocation="CenterScreen"
+        TitleCharacterCasing="Normal"
+        WindowTransitionsEnabled="False">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Main Content -->
+        <Grid Margin="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Main Calendar -->
+            <Calendar x:Name="MainCalendar"
+                     Grid.Column="0"
+                     VerticalAlignment="Top"
+                     Style="{DynamicResource MahApps.Styles.Calendar}"
+                     SelectionMode="SingleDate"
+                     Background="{StaticResource CustomSecondaryBrush}"
+                     Foreground="White"
+                     BorderBrush="{StaticResource CustomAccentBrush}"
+                     SelectedDatesChanged="MainCalendar_SelectedDatesChanged"/>
+
+            <!-- Events List -->
+            <ListView x:Name="EventsList"
+                     Grid.Column="1"
+                     Margin="16,0"
+                     Style="{DynamicResource MahApps.Styles.ListView}"
+                     Background="{StaticResource CustomSecondaryBrush}"
+                     BorderBrush="{StaticResource CustomAccentBrush}"
+                     Foreground="White"
+                     SelectionChanged="EventsList_SelectionChanged">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Time" Width="100" DisplayMemberBinding="{Binding Time}"/>
+                        <GridViewColumn Header="Title" Width="200" DisplayMemberBinding="{Binding Title}"/>
+                        <GridViewColumn Header="Notification" Width="100" DisplayMemberBinding="{Binding NotificationTime}"/>
+                    </GridView>
+                </ListView.View>
+                <ListView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Set Custom Notification" Click="SetCustomNotification_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Snooze">
+                            <MenuItem Header="5 Minutes" Click="Snooze5Min_Click"/>
+                            <MenuItem Header="15 Minutes" Click="Snooze15Min_Click"/>
+                            <MenuItem Header="30 Minutes" Click="Snooze30Min_Click"/>
+                            <MenuItem Header="1 Hour" Click="Snooze1Hour_Click"/>
+                            <MenuItem Header="1 Day" Click="Snooze1Day_Click"/>
+                        </MenuItem>
+                        <Separator/>
+                        <MenuItem Header="Clear Notification" Click="ClearNotification_Click"/>
+                    </ContextMenu>
+                </ListView.ContextMenu>
+            </ListView>
+
+            <!-- Notification Calendar -->
+            <Calendar x:Name="NotificationCalendar"
+                     Grid.Column="2"
+                     VerticalAlignment="Top"
+                     Style="{DynamicResource MahApps.Styles.Calendar}"
+                     SelectionMode="SingleDate"
+                     Background="{StaticResource CustomSecondaryBrush}"
+                     Foreground="White"
+                     BorderBrush="{StaticResource CustomAccentBrush}"
+                     IsEnabled="False"/>
+        </Grid>
+    </Grid>
+</mah:MetroWindow>
