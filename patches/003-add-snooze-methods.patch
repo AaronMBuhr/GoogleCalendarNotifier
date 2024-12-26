@@ -1,0 +1,36 @@
+--- ConfigManager.cs
++++ ConfigManager.cs
+@@ -76,10 +76,11 @@
+         public void SnoozeEvent(string eventId, DateTime until, DateTime originalNotificationTime)
+         {
+             _config.State.SnoozedEvents[eventId] = new SnoozeInfo
+             {
+                 EventId = eventId,
+-                SnoozeUntil = until,
++                UntilTime = until,
+                 OriginalNotificationTime = originalNotificationTime
+             };
+             SaveConfig();
+         }
+ 
++        public void ClearEventSnooze(string eventId)
++        {
++            if (_config.State.SnoozedEvents.Remove(eventId))
++            {
++                SaveConfig();
++            }
++        }
++
++        public SnoozeInfo? GetEventSnoozeInfo(string eventId)
++        {
++            _config.State.SnoozedEvents.TryGetValue(eventId, out var snoozeInfo);
++            return snoozeInfo;
++        }
++    }
++
++    public class SnoozeInfo
++    {
++        public required string EventId { get; set; }
++        public DateTime UntilTime { get; set; }
++        public DateTime OriginalNotificationTime { get; set; }
+     }

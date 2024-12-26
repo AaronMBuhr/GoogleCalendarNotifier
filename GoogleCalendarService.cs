@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 
 namespace GoogleCalendarNotifier
 {
@@ -22,12 +23,20 @@ namespace GoogleCalendarNotifier
 
         public async Task InitializeAsync()
         {
+            Debug.WriteLine("Initializing Google Calendar Service");
             try
             {
-                using var stream = new FileStream(_credentialsPath, FileMode.Open, FileAccess.Read);
+                // Delete existing token to force reauthorization
+                var tokenDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _tokenPath);
+                if (Directory.Exists(tokenDirectory))
+                {
+                    Debug.WriteLine("Deleting existing token directory");
+                    Directory.Delete(tokenDirectory, true);
+                }
 
-                // The file token.json stores the user's access and refresh tokens, and is created
-                // automatically when the authorization flow completes for the first time
+                using var stream = new FileStream(_credentialsPath, FileMode.Open, FileAccess.Read);
+                Debug.WriteLine("Loaded credentials.json");
+
                 var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
                     GoogleClientSecrets.FromStream(stream).Secrets,
                     _scopes,
@@ -35,63 +44,84 @@ namespace GoogleCalendarNotifier
                     CancellationToken.None,
                     new FileDataStore(_tokenPath, true));
 
-                // Create the Calendar service
+                Debug.WriteLine("Authorization completed");
+
                 _calendarService = new CalendarService(new BaseClientService.Initializer()
                 {
                     HttpClientInitializer = credential,
                     ApplicationName = _applicationName,
                 });
+
+                Debug.WriteLine("Calendar service created successfully");
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"Error in InitializeAsync: {ex}");
                 throw new InvalidOperationException($"Failed to initialize Google Calendar service: {ex.Message}", ex);
             }
         }
 
         public async Task<IEnumerable<CalendarEvent>> GetUpcomingEventsAsync(TimeSpan lookAheadTime)
         {
+            Debug.WriteLine($"Getting upcoming events for next {lookAheadTime.TotalDays} days");
+
             if (_calendarService == null)
                 throw new InvalidOperationException("Calendar service not initialized. Call InitializeAsync first.");
 
             try
             {
-                var now = DateTimeOffset.UtcNow;
+                var now = DateTime.Now;
+                Debug.WriteLine($"Current time: {now}");
+
                 var events = new List<CalendarEvent>();
 
                 var request = _calendarService.Events.List("primary");
-                request.TimeMinDateTimeOffset = now;
-                request.TimeMaxDateTimeOffset = now.Add(lookAheadTime);
+                request.TimeMin = now;
+                request.TimeMax = now.Add(lookAheadTime);
                 request.ShowDeleted = false;
                 request.SingleEvents = true;
-                request.MaxResults = 100;
+                request.MaxResults = 250;
                 request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
 
+                Debug.WriteLine($"Requesting events from {request.TimeMin} to {request.TimeMax}");
+
                 var response = await request.ExecuteAsync();
+                Debug.WriteLine($"Retrieved {response.Items?.Count ?? 0} events from Google Calendar");
 
                 foreach (var item in response.Items ?? Enumerable.Empty<Event>())
                 {
-                    if (item.Start == null || (item.Start.DateTimeDateTimeOffset == null && item.Start.Date == null))
+                    Debug.WriteLine($"Processing event: {item.Summary} at {item.Start?.DateTime ?? DateTime.MinValue}");
+
+                    if (item.Start == null || (item.Start.DateTime == null && item.Start.Date == null))
+                    {
+                        Debug.WriteLine("Skipping event with no start time");
                         continue;
+                    }
 
-                    // Fix for CS8604 - Ensure we have a valid start date string
-                    var start = item.Start.DateTimeDateTimeOffset?.DateTime ??
-                               (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.UtcNow);
+                    // Parse the start time
+                    var start = item.Start.DateTime?.ToLocalTime() ??
+                               (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.Now);
 
-                    // Fix for CS8604 - More careful null handling for end date
-                    var end = item.End?.DateTimeDateTimeOffset?.DateTime ??
+                    Debug.WriteLine($"Parsed start time: {start}");
+
+                    // Parse the end time
+                    var end = item.End?.DateTime?.ToLocalTime() ??
                              (item.End?.Date != null ? DateTime.Parse(item.End.Date) : start);
 
-                    // Fix for CS8629 - Safe handling of reminder minutes
+                    Debug.WriteLine($"Parsed end time: {end}");
+
+                    // Handle reminders
                     TimeSpan? reminderTime = null;
                     if (item.Reminders?.UseDefault == true)
                     {
                         reminderTime = TimeSpan.FromMinutes(30);
+                        Debug.WriteLine("Using default reminder time (30 minutes)");
                     }
                     else if (item.Reminders?.Overrides?.FirstOrDefault()?.Minutes is int minutes)
                     {
                         reminderTime = TimeSpan.FromMinutes(minutes);
+                        Debug.WriteLine($"Using custom reminder time ({minutes} minutes)");
                     }
-
 
                     events.Add(new CalendarEvent
                     {
@@ -100,15 +130,37 @@ namespace GoogleCalendarNotifier
                         Description = item.Description ?? "",
                         StartTime = start,
                         EndTime = end,
-                        IsAllDay = item.Start?.DateTimeDateTimeOffset == null,
+                        IsAllDay = item.Start.DateTime == null,
                         ReminderTime = reminderTime
                     });
+
+                    Debug.WriteLine($"Added event to list: {item.Summary}");
                 }
 
+                Debug.WriteLine($"Returning {events.Count} events");
                 return events;
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"Error in GetUpcomingEventsAsync: {ex}");
+                throw new InvalidOperationException($"Failed to fetch calendar events: {ex.Message}", ex);
+            }
+        }
+
+        public Task<IEnumerable<CalendarEvent>> GetEventsAsync(DateTime startDate, DateTime endDate)
+        {
+            Debug.WriteLine($"Getting events between {startDate} and {endDate}");
+
+            if (_calendarService == null)
+                throw new InvalidOperationException("Calendar service not initialized. Call InitializeAsync first.");
+
+            try
+            {
+                return GetUpcomingEventsAsync(endDate - startDate);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in GetEventsAsync: {ex}");
                 throw new InvalidOperationException($"Failed to fetch calendar events: {ex.Message}", ex);
             }
         }

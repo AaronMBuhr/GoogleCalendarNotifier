@@ -71,15 +71,7 @@ namespace GoogleCalendarNotifier
             }
         }
 
-        public SnoozeInfo? GetEventSnoozeInfo(string eventId)
-        {
-            if (_config.State.SnoozedEvents.TryGetValue(eventId, out var snoozeInfo))
-            {
-                return snoozeInfo;
-            }
-            return null;
-        }
-
+        // Helper methods for common operations
         public void SnoozeEvent(string eventId, DateTime until, DateTime originalNotificationTime)
         {
             _config.State.SnoozedEvents[eventId] = new SnoozeInfo
@@ -91,29 +83,4 @@ namespace GoogleCalendarNotifier
             SaveConfig();
         }
 
-        public void ClearEventSnooze(string eventId)
-        {
-            if (_config.State.SnoozedEvents.Remove(eventId))
-            {
-                SaveConfig();
-            }
-        }
-
-        public bool IsEventSnoozed(string eventId, out DateTime snoozeUntil)
-        {
-            if (_config.State.SnoozedEvents.TryGetValue(eventId, out var snoozeInfo))
-            {
-                snoozeUntil = snoozeInfo.UntilTime;
-                return snoozeUntil > DateTime.Now;
-            }
-            snoozeUntil = DateTime.MinValue;
-            return false;
-        }
-
-        public CustomNotification? GetCustomNotification(string eventId)
-        {
-            _config.State.CustomNotifications.TryGetValue(eventId, out var notification);
-            return notification;
-        }
-    }
 }

@@ -10,10 +10,12 @@ using MahApps.Metro.Controls;
 using System.Diagnostics;
 using System.Text;
 using System.ComponentModel;
-using H.NotifyIcon;
+using H.TaskbarIcon.Wpf;
+using H.TaskbarIcon;
 
 
 namespace GoogleCalendarNotifier
+using H.NotifyIcon.Wpf;
 {
     public partial class MainWindow : MetroWindow
     {

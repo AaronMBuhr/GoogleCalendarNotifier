@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mah:MetroWindow x:Class="GoogleCalendarNotifier.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:GoogleCalendarNotifier"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:tb="http://schemas.microsoft.com/xaml/behaviors"
+        xmlns:ni="http://schemas.haven-dv.com/notifyicon"
+        mc:Ignorable="d"
+        Title="Calendar Notifications" 
+        Height="700" Width="900"
+        MinHeight="600" MinWidth="800"
+        ShowTitleBar="True"
+        WindowTitleBrush="{StaticResource CustomBackgroundBrush}"
+        NonActiveWindowTitleBrush="{StaticResource CustomSecondaryBrush}"
+        GlowBrush="{StaticResource CustomAccentBrush}"
+        Background="{StaticResource CustomBackgroundBrush}"
+        WindowStartupLocation="CenterScreen"
+        TitleCharacterCasing="Normal"
+        WindowTransitionsEnabled="False"
+        NonActiveBorderBrush="{StaticResource CustomAccentBrush}"
+        BorderBrush="{StaticResource CustomAccentBrush}"
+        BorderThickness="1"
+        UseNoneWindowStyle="False"
+        StateChanged="Window_StateChanged"
+        Closing="Window_Closing">
+    
+    <!-- Window.Resources section unchanged -->
+    <Window.Resources>
+        <ResourceDictionary>
+            <!-- existing resources -->
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="4">
+    <Calendar x:Name="MainCalendar" Margin="10" SelectedDatesChanged="MainCalendar_SelectedDatesChanged" />
+    <ListBox x:Name="EventsList" Margin="10,120,10,10" SelectionChanged="EventsList_SelectionChanged" />
+    <TextBlock x:Name="EventDetailsBlock" Margin="10,300,10,10" Text="No event selected." />
+        <!-- Main content Grid unchanged -->
+        
+        <!-- Update Tray Icon -->
+        <ni:TaskbarIcon x:Name="NotifyIcon"
+                       IconSource="/app.ico"
+                       ToolTipText="Calendar Notifications"
+                       TrayMouseDoubleClick="NotifyIcon_TrayMouseDoubleClick">
+            <ni:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Show" Click="ShowMenuItem_Click"/>
+                    <MenuItem Header="Exit" Click="ExitMenuItem_Click"/>
+                </ContextMenu>
+            </ni:TaskbarIcon.ContextMenu>
+        </ni:TaskbarIcon>
+    </Grid>
+</mah:MetroWindow>

@@ -1,0 +1,38 @@
+diff --git a/MainWindow.xaml b/MainWindow.xaml
+index a4b9f76..c8d3e45 100644
+--- a/MainWindow.xaml
++++ b/MainWindow.xaml
+@@ -177,18 +177,18 @@
+         </ListView>
+ 
+         <!-- Tray Icon -->
+-        <ni:TaskbarIcon x:Name="TrayIcon"
++        <ni:TaskbarIcon x:Name="NotifyIcon"
+                        IconSource="/app.ico"
+                        ToolTipText="Calendar Notifications"
+                        DoubleClickCommand="{Binding ShowWindowCommand}"
+-                       DoubleClick="TrayIcon_TrayMouseDoubleClick">
++                       TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick">
+             <ni:TaskbarIcon.ContextMenu>
+                 <ContextMenu>
+                     <MenuItem Header="Show" Click="ShowMenuItem_Click"/>
+                     <MenuItem Header="Exit" Click="ExitMenuItem_Click"/>
+                 </ContextMenu>
+             </ni:TaskbarIcon.ContextMenu>
+-        </ni:TaskbarIcon>
+-    </Grid>
++        </ni:TaskbarIcon>
++    </Grid>
+ 
+diff --git a/MainWindow.xaml.cs b/MainWindow.xaml.cs
+index b742f12..e9a1c45 100644
+--- a/MainWindow.xaml.cs
++++ b/MainWindow.xaml.cs
+@@ -70,7 +70,7 @@
+         private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
+         {
+             _isClosing = true;
+-            TrayIcon.Dispose();
++            NotifyIcon.Dispose();
+             Close();
+         }
