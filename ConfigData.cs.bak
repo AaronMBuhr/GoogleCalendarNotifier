@@ -38,4 +38,3 @@ namespace GoogleCalendarNotifier
         public bool IsEnabled { get; set; } = true;
     }
 }
-

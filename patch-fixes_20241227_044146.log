@@ -1,0 +1,29 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20241227044146
+Username: AMBMAIN\aaron
+RunAs User: AMBMAIN\aaron
+Configuration Name: 
+Machine: AMBMAIN (Microsoft Windows NT 10.0.26120.0)
+Host Application: powershell -file apply-fixes.ps1
+Process ID: 44380
+PSVersion: 5.1.26100.2200
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.2200
+BuildVersion: 10.0.26100.2200
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is patch-fixes_20241227_044146.log
+Starting modifications at 12/27/2024 04:41:46
+=============================
+Adding DisplayDateChanged handler to MainWindow.xaml.cs...
+=============================
+Completed modifications at 12/27/2024 04:41:46
+All files have been updated successfully.
+**********************
+Windows PowerShell transcript end
+End time: 20241227044146
+**********************

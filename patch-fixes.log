@@ -11,3 +11,8 @@ Starting fixes at Thu Dec 26 07:18:32 AM EST 2024
 =============================
 =============================
 Completed fixes at Thu Dec 26 07:18:32 AM EST 2024
+Starting modifications at Fri Dec 27 04:02:55 AM EST 2024
+=============================
+Fixing MainWindow.xaml NotifyIcon references...
+Fixing obsolete TimeMin/TimeMax in GoogleCalendarService.cs...
+sed: cannot rename ./sedDii1Hs: Permission denied

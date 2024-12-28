@@ -99,10 +99,10 @@ namespace GoogleCalendarNotifier
                     }
 
                     // Parse the start time
-                    var start = item.Start.DateTimeDateTimeOffset?.LocalDateTime 
+                    var start = item.Start.DateTimeDateTimeOffset?.UtcDateTime 
                         ?? (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.Now);
 
-                    Debug.WriteLine($"Parsed start time: {start} (Original: {item.Start.DateTimeDateTimeOffset})");
+                    Debug.WriteLine($"Parsed start time: {start}");
 
                     // Parse the end time
                     var end = item.End?.DateTimeDateTimeOffset?.LocalDateTime ??
@@ -166,6 +166,5 @@ namespace GoogleCalendarNotifier
         }
     }
 }
-
 
 

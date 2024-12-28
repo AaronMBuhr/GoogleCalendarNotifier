@@ -1,4 +1,4 @@
-﻿using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
@@ -77,7 +77,7 @@ namespace GoogleCalendarNotifier
 
                 var request = _calendarService.Events.List("primary");
                 request.TimeMinDateTimeOffset = new DateTimeOffset(now);
-                request.TimeMaxDateTimeOffset = new DateTimeOffset(now.Add(lookAheadTime));
+                request.TimeMax = now.Add(lookAheadTime);
                 request.ShowDeleted = false;
                 request.SingleEvents = true;
                 request.MaxResults = 250;
@@ -92,20 +92,20 @@ namespace GoogleCalendarNotifier
                 {
                     Debug.WriteLine($"Processing event: {item.Summary} at {item.Start?.DateTime ?? DateTime.MinValue}");
 
-                    if (item.Start == null || (item.Start.DateTimeDateTimeOffset == null && item.Start.Date == null))
+                    if (item.Start == null || (item.Start.DateTime == null && item.Start.Date == null))
                     {
                         Debug.WriteLine("Skipping event with no start time");
                         continue;
                     }
 
                     // Parse the start time
-                    var start = item.Start.DateTimeDateTimeOffset?.LocalDateTime 
-                        ?? (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.Now);
+                    var start = item.Start.DateTime?.ToLocalTime() ??
+                               (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.Now);
 
-                    Debug.WriteLine($"Parsed start time: {start} (Original: {item.Start.DateTimeDateTimeOffset})");
+                    Debug.WriteLine($"Parsed start time: {start}");
 
                     // Parse the end time
-                    var end = item.End?.DateTimeDateTimeOffset?.LocalDateTime ??
+                    var end = item.End?.DateTime?.ToLocalTime() ??
                              (item.End?.Date != null ? DateTime.Parse(item.End.Date) : start);
 
                     Debug.WriteLine($"Parsed end time: {end}");
@@ -166,6 +166,3 @@ namespace GoogleCalendarNotifier
         }
     }
 }
-
-
-

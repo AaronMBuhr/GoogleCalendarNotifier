@@ -1,0 +1,73 @@
+# Google Calendar Notifier Requirements
+
+## Overview
+Windows application to read Google Calendar and display obstructive notifications that cannot be missed.
+
+## Core Features
+### Calendar Display
+* Reads events 90 days in advance (uses variable `DAYS_TO_READ_AHEAD` for future configurability)
+* Calendar control highlights current days
+* Calendar control highlights or underlines days that have events in a distinct manner
+* Interactive calendar allows day selection and event highlighting
+
+### Event Table
+* Displays columns: event name, event datetime
+* Shows all events up to `DAYS_TO_READ_AHEAD` limit
+* Clicking calendar day highlights corresponding events in table
+* Clicking table event highlights all events for that day and selects the day in calendar
+* Bottom left text box shows details for selected event
+* Tooltip shows snooze datetime for snoozed events
+
+## Notification System
+### Event Timing
+* Uses Google Calendar reminder times when set
+* Falls back to event start time if no reminder is set (including recurring events)
+* Honors all Google Calendar multiple notification times
+* Shows notifications for all-day events
+
+### Snooze Functionality
+* User can snooze events from notification window
+* Configurable snooze times via list for future modification
+* Initial snooze times:
+  - 5 minutes
+  - 15 minutes
+  - 30 minutes
+  - 60 minutes
+  - 1 day
+  - "Never" (disable all future notifications)
+  - "Event Time" (restore to event time)
+* For recurring events:
+  - Snooze settings apply to all future instances
+  - Only one snooze time active (last one set wins)
+
+## Configuration
+### Storage
+* YAML file in user's roaming appdata: AaronsWorld/GoogleCalendarNotifier
+* Stores active snooze datetimes (future only, past cleared)
+* Calendar refresh interval: 5 minutes (uses variable `REFRESH_INTERVAL_MINUTES`)
+* Manual refresh button provided
+
+### User Interface
+* System tray icon for quick access
+* Optional auto-start with Windows (checkbox in UI)
+
+## Error Handling
+### Network Issues
+* Shows notification in UI
+* Continues running with cached data
+* Auto-retries connection every `REFRESH_INTERVAL_MINUTES`
+
+### Authentication
+* Prompts for re-authentication when needed
+* Note: During test mode in Google Console, credentials must be refreshed each app start
+* Stores credentials securely using Windows Data Protection API (DPAPI)
+
+### Recovery
+* Shows missed notifications in sequence on startup
+* Clears expired snooze times automatically
+
+## Security
+### Credential Management
+* Stores refresh token using Windows DPAPI
+* Keeps sensitive data in user's roaming appdata
+* Encrypts all sensitive configuration data

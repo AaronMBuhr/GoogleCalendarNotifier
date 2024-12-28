@@ -1,35 +1,95 @@
 #!/bin/bash
 
-# Backup files before making changes
-cp MainWindow.xaml MainWindow.xaml.bak
-cp MainWindow.xaml.cs MainWindow.xaml.cs.bak
+# Define target files
+SERVICE_FILE="GoogleCalendarService.cs"
+MAIN_WINDOW_CS="MainWindow.xaml.cs"
+MAIN_WINDOW_XAML="MainWindow.xaml"
 
-# Step 1: Update MainWindow.xaml
-# Replace ni:TaskbarIcon with the correct namespace and element type
-sed -i '
-s|xmlns:ni="http://schemas.haven-dv.com/notifyicon"|xmlns:ni="http://github.com/HavenDV/H.NotifyIcon"|g;
-s/ni:TaskbarIcon/ni:TaskbarIcon/g;
-/<Grid Margin="4">/a\
-    <Calendar x:Name="MainCalendar" Margin="10" SelectedDatesChanged="MainCalendar_SelectedDatesChanged" />\
-    <ListBox x:Name="EventsList" Margin="10,120,10,10" SelectionChanged="EventsList_SelectionChanged" />\
-    <TextBlock x:Name="EventDetailsBlock" Margin="10,300,10,10" Text="No event selected." />
-' MainWindow.xaml
+# Backup original files
+cp "$SERVICE_FILE" "$SERVICE_FILE.bak"
+cp "$MAIN_WINDOW_CS" "$MAIN_WINDOW_CS.bak"
+cp "$MAIN_WINDOW_XAML" "$MAIN_WINDOW_XAML.bak"
 
-# Step 2: Update MainWindow.xaml.cs
-# Ensure the correct namespace and type is used for TaskbarIcon
-sed -i '
-s/NotifyIcon/TaskbarIcon/g;
-/namespace GoogleCalendarNotifier/a\
-using H.NotifyIcon.Wpf;
-' MainWindow.xaml.cs
+# Update GoogleCalendarService.cs
+sed -i \
+    '/var start = item.Start.DateTimeDateTimeOffset?.ToLocalTime()/c\
+            var start = item.Start.DateTimeDateTimeOffset?.UtcDateTime ?? (item.Start.Date != null ? DateTime.Parse(item.Start.Date) : DateTime.Now);' \
+    "$SERVICE_FILE"
 
-# Step 3: Confirm changes with md5sum
-echo "MD5 checksums of modified files:"
-md5sum MainWindow.xaml MainWindow.xaml.cs
+sed -i \
+    '/var end = item.End?.DateTimeDateTimeOffset?.ToLocalTime()/c\
+            var end = item.End?.DateTimeDateTimeOffset?.UtcDateTime ?? (item.End?.Date != null ? DateTime.Parse(item.End.Date) : start);' \
+    "$SERVICE_FILE"
 
-# Step 4: Confirm word count changes as an additional check
-echo "Word count of modified files:"
-wc -w MainWindow.xaml MainWindow.xaml.cs
+# Update MainWindow.xaml.cs
+sed -i \
+    '/private async void MainCalendar_SelectedDatesChanged/c\
+    private async void MainCalendar_SelectedDatesChanged(object sender, SelectionChangedEventArgs e) {\
+        if (MainCalendar.SelectedDate.HasValue) {\
+            await RefreshEventList();\
+        }\
+    }' \
+    "$MAIN_WINDOW_CS"
 
-# Notify user of backup files
-echo "Backup files created: MainWindow.xaml.bak, MainWindow.xaml.cs.bak"
+sed -i \
+    '/private async Task RefreshEventList()/c\
+    private async Task RefreshEventList() {\
+        if (!MainCalendar.SelectedDate.HasValue) return;\
+\
+        var selectedDate = MainCalendar.SelectedDate.Value;\
+        var todaysEvents = _monthEvents.Where(e => e.StartTime.Date == selectedDate.Date)\
+                                       .OrderBy(e => e.StartTime);\
+\
+        var items = todaysEvents.Select(evt => {\
+            var snoozeInfo = _configManager.GetEventSnoozeInfo(evt.Id);\
+            string notificationTime = snoozeInfo != null ? \
+                $\"Snoozed until {snoozeInfo.UntilTime:HH:mm}\" : \
+                \"Not snoozed\";\
+\
+            return new EventListItem {\
+                DateTime = evt.StartTime.ToString(\"g\"),\
+                Title = evt.Title,\
+                NotificationTime = notificationTime,\
+                IsSelectedDay = true,\
+                Event = evt\
+            };\
+        }).ToList();\
+\
+        EventsList.ItemsSource = items;\
+\
+        if (items.Any()) {\
+            EventDetailsBlock.Text = \"Event details loaded.\";\
+        } else {\
+            EventDetailsBlock.Text = \"No events for the selected date.\";\
+        }\
+    }' \
+    "$MAIN_WINDOW_CS"
+
+sed -i \
+    '/private void EventsList_SelectionChanged/c\
+    private void EventsList_SelectionChanged(object sender, SelectionChangedEventArgs e) {\
+        var item = EventsList.SelectedItem as EventListItem;\
+        if (item?.Event != null) {\
+            MainCalendar.SelectedDate = item.Event.StartTime.Date;\
+        }\
+    }' \
+    "$MAIN_WINDOW_CS"
+
+# Update MainWindow.xaml
+sed -i \
+    '/<Calendar x:Name="MainCalendar"/c\
+        <Calendar x:Name="MainCalendar" \
+                 SelectionMode="SingleDate" \
+                 SelectedDatesChanged="MainCalendar_SelectedDatesChanged" \
+                 Loaded="MainCalendar_Loaded" \
+                 Margin="1">' \
+    "$MAIN_WINDOW_XAML"
+
+sed -i \
+    '/<ListView x:Name="EventsList"/c\
+        <ListView x:Name="EventsList" \
+                 SelectionChanged="EventsList_SelectionChanged">' \
+    "$MAIN_WINDOW_XAML"
+
+# Print success message
+echo "Modifications applied successfully. Backups created with .bak extension."

@@ -1,31 +1,3 @@
-#!/bin/bash
-set -e  # Exit on error
-
-# Set up logging with tee
-exec 1> >(tee -a "patch-fixes.log")
-exec 2> >(tee -a "patch-fixes.log" >&2)
-
-echo "Starting modifications at $(date)"
-echo "============================="
-
-# Convert Windows path to WSL path if needed
-PROJ_DIR=$(wslpath -u "E:/Source/Mine/GoogleCalendarNotifier")
-cd "$PROJ_DIR"
-
-echo "Fixing MainWindow.xaml NotifyIcon references..."
-sed -i 's/TrayMouseDoubleClick="NotifyIcon_TrayMouseDoubleClick"/MouseDoubleClick="NotifyIcon_TrayMouseDoubleClick"/' MainWindow.xaml
-
-echo "Fixing obsolete TimeMin/TimeMax in GoogleCalendarService.cs..."
-sed -i 's/request\.TimeMin = now;/request.TimeMinDateTimeOffset = new DateTimeOffset(now);/' GoogleCalendarService.cs
-sed -i 's/request\.TimeMax = now\.Add(lookAheadTime);/request.TimeMaxDateTimeOffset = new DateTimeOffset(now.Add(lookAheadTime));/' GoogleCalendarService.cs
-
-echo "Fixing obsolete DateTime properties in GoogleCalendarService.cs..."
-sed -i 's/item\.Start\.DateTime/item.Start.DateTimeDateTimeOffset/g' GoogleCalendarService.cs
-sed -i 's/item\.End\.DateTime/item.End.DateTimeDateTimeOffset/g' GoogleCalendarService.cs
-
-echo "Fixing WindowsNotificationService.cs constructor and field issues..."
-# Create temporary file
-cat > WindowsNotificationService.cs.tmp << 'EOL'
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -40,13 +12,64 @@ namespace GoogleCalendarNotifier
     public class WindowsNotificationService : INotificationService
     {
         private readonly TaskbarIcon _trayIcon;
-        private readonly NotificationSettings _settings;
+        private NotificationSettings _settings;
 
+#if old
         public WindowsNotificationService()
         {
             _trayIcon = new TaskbarIcon();
             _settings = new NotificationSettings();
+            
+            // Initialize tray icon
+            _trayIcon.Icon = System.Drawing.SystemIcons.Information;
         }
+
+        void INotificationService.ShowNotification(string title, string message, NotificationType type)
+        {
+            // Use Windows Toast Notifications
+            var builder = new ToastContentBuilder()
+                .AddText(title)
+                .AddText(message);
+
+            // Adjust the notification based on type
+            switch (type)
+            {
+                case NotificationType.Warning:
+                    builder.AddAttributionText("Warning");
+                    _trayIcon.Icon = System.Drawing.SystemIcons.Warning;
+                    break;
+                case NotificationType.Error:
+                    builder.AddAttributionText("Error");
+                    _trayIcon.Icon = System.Drawing.SystemIcons.Error;
+                    break;
+                case NotificationType.Success:
+                    builder.AddAttributionText("Success");
+                    _trayIcon.Icon = System.Drawing.SystemIcons.Information;
+                    break;
+                default:
+                    _trayIcon.Icon = System.Drawing.SystemIcons.Information;
+                    break;
+            }
+
+            builder.Show();
+
+            // Also show in system tray
+            _trayIcon.BalloonTipTitle = title;
+            _trayIcon.BalloonTipText = message;
+            _trayIcon.ShowBalloonTip(3000);
+        }
+
+        void INotificationService.Configure(NotificationSettings settings)
+        {
+            _settings = settings;
+        }
+
+        ~WindowsNotificationService()
+        {
+            _trayIcon.Dispose();
+        }
+
+#endif
 
         void INotificationService.ShowNotification(string title, string message, NotificationType type)
         {
@@ -80,18 +103,13 @@ namespace GoogleCalendarNotifier
 
         void INotificationService.Configure(NotificationSettings settings)
         {
-            // Update any configurable settings here
+            _settings = settings;
         }
 
         ~WindowsNotificationService()
         {
             _trayIcon.Dispose();
         }
+
     }
 }
-EOL
-
-mv WindowsNotificationService.cs.tmp WindowsNotificationService.cs
-
-echo "============================="
-echo "Completed modifications at $(date)"

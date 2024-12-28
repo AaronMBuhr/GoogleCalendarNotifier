@@ -1,65 +1,43 @@
-# PowerShell script to apply fixes
-Write-Host "Applying fixes..." -ForegroundColor Green
+# Set error action preference to stop on any error
+$ErrorActionPreference = "Stop"
 
-# 1. Fix NotifyIcon in MainWindow.xaml
-$mainWindowXaml = Get-Content "MainWindow.xaml" -Raw
-$mainWindowXaml = $mainWindowXaml -replace '<ni:TaskbarIcon x:Name="NotifyIcon"', '<ni:TaskbarIcon x:Name="NotifyIcon"'
-$mainWindowXaml = $mainWindowXaml -replace 'TrayMouseDoubleClick="TrayIcon_TrayMouseDoubleClick"', 'TrayMouseDoubleClick="NotifyIcon_TrayMouseDoubleClick"'
-$mainWindowXaml = $mainWindowXaml -replace '<ni:TaskbarIcon x:Name="TrayIcon"', '<ni:TaskbarIcon x:Name="NotifyIcon"'
-Set-Content "MainWindow.xaml" $mainWindowXaml -NoNewline
+# Generate log filename
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$logFile = "patch-fixes_$timestamp.log"
+$fullLogPath = "$PWD\$logFile"
 
-# 2. Update GoogleCalendarService.cs to add GetEventsAsync method
-$serviceContent = Get-Content "GoogleCalendarService.cs" -Raw
-$insertPoint = $serviceContent.LastIndexOf("}")
-$newMethod = @"
+# Start logging
+Start-Transcript -Path $logFile
 
-        public Task<IEnumerable<CalendarEvent>> GetEventsAsync(DateTime startDate, DateTime endDate)
-        {
-            Debug.WriteLine($"Getting events between {startDate} and {endDate}");
-            
-            if (_calendarService == null)
-                throw new InvalidOperationException("Calendar service not initialized. Call InitializeAsync first.");
+try {
+    Write-Host "Starting modifications at $(Get-Date)"
+    Write-Host "============================="
 
-            try
-            {
-                return GetUpcomingEventsAsync(endDate - startDate);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error in GetEventsAsync: {ex}");
-                throw new InvalidOperationException($"Failed to fetch calendar events: {ex.Message}", ex);
-            }
+    # Fix MainWindow.xaml.cs - use a more precise replacement
+    $content = Get-Content MainWindow.xaml.cs -Raw
+    $content = $content -replace '[^\S\r\n]+private async void MainCalendar_DisplayDateChanged\([^}]*}\r?\n    }', '    }'
+    $content | Set-Content MainWindow.xaml.cs -Force -Encoding UTF8
+
+    Write-Host "============================="
+    Write-Host "Completed modifications at $(Get-Date)"
+
+    # Calculate stats and copy to clipboard
+    $stats = @{
+        'MainWindow.xaml.cs' = @{
+            MD5 = (Get-FileHash -Algorithm MD5 MainWindow.xaml.cs).Hash
+            Words = (Get-Content MainWindow.xaml.cs -Raw | Select-String -Pattern '\w+' -AllMatches).Matches.Count
+            Lines = (Get-Content MainWindow.xaml.cs).Count
         }
-"@
-
-$updatedService = $serviceContent.Insert($insertPoint, $newMethod)
-Set-Content "GoogleCalendarService.cs" $updatedService -NoNewline
-
-# 3. Update CalendarEvent.cs to ensure nullable reference types
-$calendarEvent = @"
-using System;
-
-namespace GoogleCalendarNotifier
-{
-    public class CalendarEvent
-    {
-        public required string Id { get; set; }
-        public required string Title { get; set; }
-        public string Description { get; set; } = string.Empty;
-        public DateTime StartTime { get; set; }
-        public DateTime? EndTime { get; set; }
-        public bool IsAllDay { get; set; }
-        public TimeSpan? ReminderTime { get; set; }
     }
+    $statsStr = ($stats | ConvertTo-Json)
+    $statsStr | Set-Clipboard
+    Write-Host "File statistics copied to clipboard:`n$statsStr"
 }
-"@
-Set-Content "CalendarEvent.cs" $calendarEvent -NoNewline
-
-# 4. Update MainWindow.xaml.cs to fix event handler name
-$mainWindowCs = Get-Content "MainWindow.xaml.cs" -Raw
-$mainWindowCs = $mainWindowCs -replace "TrayIcon_TrayMouseDoubleClick", "NotifyIcon_TrayMouseDoubleClick"
-Set-Content "MainWindow.xaml.cs" $mainWindowCs -NoNewline
-
-Write-Host "All fixes applied successfully!" -ForegroundColor Green
-Write-Host "Press any key to continue..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+catch {
+    Write-Host "Error occurred: $_"
+    Write-Host "Stack Trace: $($_.ScriptStackTrace)"
+    exit 1
+}
+finally {
+    Stop-Transcript
+}
