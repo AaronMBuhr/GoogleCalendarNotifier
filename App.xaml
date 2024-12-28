@@ -10,20 +10,6 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Blue.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- Custom Colors -->
-            <Color x:Key="CustomBackgroundColor">#1E1E2E</Color>
-            <Color x:Key="CustomSecondaryColor">#2A2A40</Color>
-            <Color x:Key="CustomAccentColor">#89B4FA</Color>
-            <Color x:Key="CustomBorderColor">#74C7EC</Color>
-            <Color x:Key="CustomHighlightColor">#94E2D5</Color>
-            
-            <!-- Custom Brushes -->
-            <SolidColorBrush x:Key="CustomBackgroundBrush" Color="{StaticResource CustomBackgroundColor}"/>
-            <SolidColorBrush x:Key="CustomSecondaryBrush" Color="{StaticResource CustomSecondaryColor}"/>
-            <SolidColorBrush x:Key="CustomAccentBrush" Color="{StaticResource CustomAccentColor}"/>
-            <SolidColorBrush x:Key="CustomBorderBrush" Color="{StaticResource CustomBorderColor}"/>
-            <SolidColorBrush x:Key="CustomHighlightBrush" Color="{StaticResource CustomHighlightColor}"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

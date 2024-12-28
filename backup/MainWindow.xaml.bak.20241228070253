@@ -1,0 +1,169 @@
+﻿<Window x:Class="GoogleCalendarNotifier.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:GoogleCalendarNotifier"
+        mc:Ignorable="d"
+        Title="Calendar Notifications"
+        Height="500" Width="800"
+        Background="#1E293B"
+        ResizeMode="NoResize"
+        SizeToContent="Height">
+
+    <Window.Resources>
+        <!-- Color Scheme -->
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="#1E293B"/>
+        <SolidColorBrush x:Key="BorderBrush" Color="#475569"/>
+        <SolidColorBrush x:Key="HighlightBrush" Color="#60A5FA"/>
+        <SolidColorBrush x:Key="SelectedBrush" Color="#2563EB"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="CalendarLightBrush" Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="CalendarDarkBrush" Color="#1E293B"/>
+        <SolidColorBrush x:Key="TableHoverBrush" Color="#3B82F6"/>
+        <local:TimeDisplayConverter x:Key="TimeDisplayConverter"/>
+
+        <!-- FINAL UPDATED CALENDAR STYLE -->
+        <Style\ x:Key=""EventDayStyle""\ TargetType=""\{x:Type\ Calendar}"">\r\n\ \ \ \ <Setter\ Property=""Background""\ Value=""\{StaticResource\ CalendarDarkBrush}""/>\r\n\ \ \ \ <Setter\ Property=""BorderBrush""\ Value=""\{StaticResource\ BorderBrush}""/>\r\n\ \ \ \ <Setter\ Property=""Foreground""\ Value=""\{StaticResource\ CalendarLightBrush}""/>\r\n\ \ \ \ <Style\.Resources>\r\n\r\n\ \ \ \ \ \ \ \ <!--\ Day\ Buttons:\ Inverted\ colors\ \+\ underline\ for\ events\ -->\r\n\ \ \ \ \ \ \ \ <Style\ TargetType=""CalendarDayButton"">\r\n\ \ \ \ \ \ \ \ \ \ \ \ <!--\ Current-month\ days:\ light\ background,\ dark\ text\ -->\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Background""\ Value=""\{StaticResource\ CalendarLightBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Foreground""\ Value=""\{StaticResource\ CalendarDarkBrush}""/>\r\n\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Style\.Triggers>\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <!--\ Other-month\ days:\ dark\ background,\ light\ text\ -->\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <DataTrigger\ Binding=""\{Binding\ IsEnabled,\ RelativeSource=\{RelativeSource\ Self}}""\ Value=""False"">\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Background""\ Value=""\{StaticResource\ CalendarDarkBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Foreground""\ Value=""\{StaticResource\ CalendarLightBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ </DataTrigger>\r\n\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <!--\ Underline\ if\ HasEvents\ is\ true\ -->\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <DataTrigger\ Binding=""\{Binding\ \(local:CalendarDayButtonExtensions\.HasEvents\),\ RelativeSource=\{RelativeSource\ Self}}""\ Value=""True"">\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""TextElement\.TextDecorations""\ Value=""Underline""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ </DataTrigger>\r\n\ \ \ \ \ \ \ \ \ \ \ \ </Style\.Triggers>\r\n\ \ \ \ \ \ \ \ </Style>\r\n\r\n\ \ \ \ \ \ \ \ <!--\ Keep\ default\ layout\ for\ CalendarItem\ -->\r\n\ \ \ \ \ \ \ \ <Style\ TargetType=""CalendarItem"">\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Background""\ Value=""\{StaticResource\ CalendarDarkBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Foreground""\ Value=""\{StaticResource\ CalendarLightBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""BorderBrush""\ Value=""\{StaticResource\ BorderBrush}""/>\r\n\ \ \ \ \ \ \ \ </Style>\r\n\r\n\ \ \ \ \ \ \ \ <!--\ Month/Year\ header\ -->\r\n\ \ \ \ \ \ \ \ <Style\ TargetType=""CalendarButton"">\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Background""\ Value=""\{StaticResource\ CalendarDarkBrush}""/>\r\n\ \ \ \ \ \ \ \ \ \ \ \ <Setter\ Property=""Foreground""\ Value=""\{StaticResource\ CalendarLightBrush}""/>\r\n\ \ \ \ \ \ \ \ </Style>\r\n\ \ \ \ </Style\.Resources>\r\n</Style>
+
+                <!-- Flip day abbreviations (WeekNames) on top, then month/year header, then day buttons -->
+                <Style TargetType="CalendarItem">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="CalendarItem">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/>
+                                        <RowDefinition/>
+                                        <RowDefinition/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 1) Day abbreviations on top -->
+                                    <CalendarItem.WeekNamesPresenter Grid.Row="0" />
+
+                                    <!-- 2) Month/Year header + prev/next buttons in middle -->
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <CalendarItem.PreviousButton/>
+                                        <CalendarItem.HeaderButton Margin="5,0"/>
+                                        <CalendarItem.NextButton/>
+                                    </StackPanel>
+
+                                    <!-- 3) Day buttons below -->
+                                    <CalendarItem.DayButtonsPresenter Grid.Row="2"/>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                </Style>
+
+                <!-- Style for Month/Year header -->
+                <Style TargetType="CalendarButton">
+                    <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                </Style>
+            </Style.Resources>
+        </Style>
+
+        <!-- Keep your list item highlight style, used by the EventsListView -->
+        <Style x:Key="ListViewItemHighlightStyle" TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource HighlightBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource TableHoverBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Top Menu Bar -->
+        <ToolBar Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource CalendarDarkBrush}" Margin="0,0,0,10">
+            <CheckBox x:Name="AutoStartCheckBox"
+                      Content="Start with Windows"
+                      Margin="10,0"
+                      Foreground="{StaticResource TextBrush}"
+                      VerticalAlignment="Center"/>
+        </ToolBar>
+
+        <!-- Left Column -->
+        <StackPanel Grid.Row="1" Grid.Column="0" Width="300">
+            <!-- Calendar Section -->
+            <Calendar x:Name="MainCalendar" 
+                      Margin="0,0,10,10"
+                      SelectedDatesChanged="OnCalendarSelectionChanged"
+                      Style="{StaticResource EventDayStyle}" 
+                      HorizontalAlignment="Center"/>
+
+            <!-- Event Details -->
+            <TextBox x:Name="EventDetailsTextBox"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap"
+                     Height="120"
+                     Background="{StaticResource CalendarDarkBrush}"
+                     Foreground="{StaticResource TextBrush}"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+        </StackPanel>
+
+        <!-- Events Table -->
+        <ListView Grid.Row="1" Grid.Column="1" 
+                  x:Name="EventsListView" 
+                  Background="{StaticResource CalendarDarkBrush}"
+                  BorderBrush="{StaticResource BorderBrush}"
+                  Foreground="{StaticResource TextBrush}"
+                  SelectionChanged="OnEventTableSelectionChanged"
+                  ItemContainerStyle="{StaticResource ListViewItemHighlightStyle}"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Event" Width="200">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Title}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Date" Width="85">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StartTime, StringFormat={}{0:MM/dd/yyyy}}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Time" Width="65">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding StartTime, StringFormat={}{0:HH:mm}}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="Reminder" Width="100">
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding ReminderTime}"/>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </Grid>
+</Window>
+

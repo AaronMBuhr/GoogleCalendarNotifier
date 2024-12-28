@@ -1,69 +1,86 @@
-# PowerShell Script to Patch Google Calendar Notifier Project Files
+# Patch script to update calendar styles in MainWindow.xaml
+$filePath = Join-Path $PSScriptRoot ".." "MainWindow.xaml"
 
-# Define the target files
-$filesToPatch = @(
-    "MainWindow.xaml",
-    "MainWindow.xaml.cs"
-)
+# Define the old style block pattern with looser matching
+$oldStylePattern = '(?s)<Style x:Key="EventDayStyle".*?</Style>'
 
-# Define backup directory
-$backupDir = "backup"
+# New style content
+$newStyle = @'
+        <Style x:Key="EventDayStyle" TargetType="{x:Type Calendar}">
+            <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+            <Style.Resources>
+                <!-- Day Buttons: Inverted colors + underline if HasEvents -->
+                <Style TargetType="CalendarDayButton">
+                    <!-- Current-month days: light background, dark text -->
+                    <Setter Property="Background" Value="{StaticResource CalendarLightBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarDarkBrush}"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="CalendarDayButton">
+                                <Grid>
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}">
+                                        <TextBlock Text="{TemplateBinding Content}"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 Foreground="{TemplateBinding Foreground}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                                                            <Setter Property="TextDecorations" Value="Underline"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <!-- Other-month days (IsEnabled=false): dark background, light text -->
+                        <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="False">
+                            <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
 
-# Ensure backup directory exists
-if (!(Test-Path -Path $backupDir)) {
-    New-Item -ItemType Directory -Path $backupDir | Out-Null
-}
-}
+                <!-- Keep default layout for CalendarItem (no flipping) -->
+                <Style TargetType="CalendarItem">
+                    <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                </Style>
 
-# Backup and modify each file
-foreach ($file in $filesToPatch) {
-    if (Test-Path -Path $file) {
-        # Backup the original file
-        Write-Output "Backing up $file to $backupDir"
-        Copy-Item -Path $file -Destination "$backupDir\$file"
+                <!-- Month/Year header -->
+                <Style TargetType="CalendarButton">
+                    <Setter Property="Background" Value="{StaticResource CalendarDarkBrush}"/>
+                    <Setter Property="Foreground" Value="{StaticResource CalendarLightBrush}"/>
+                </Style>
+            </Style.Resources>
+        </Style>
+'@
 
-        # Read the content of the file
-        $content = Get-Content -Path $file
+try {
+    # Read the current content
+    $content = Get-Content -Path $filePath -Raw
 
-        # Apply modifications based on the file name
-        switch ($file) {
-            "MainWindow.xaml" {
-                Write-Output "Applying patch to $file"
-
-                # Update the calendar day button styles
-                $content = $content -replace "(?<=<Style TargetType=\"CalendarDayButton\">.*?<Setter Property=\"Background\" Value=\")(#[A-Fa-f0-9]{6}|\w+)(?=\" />)", "#E2E8F0" # Light gray for current month
-                $content = $content -replace "(?<=<Style TargetType=\"CalendarDayButton\">.*?<Setter Property=\"Foreground\" Value=\")(#[A-Fa-f0-9]{6}|\w+)(?=\" />)", "#1E293B" # Dark gray for non-current month
-
-                # Add underline to days with events
-                $content = $content -replace "(<Rectangle x:Name=\"EventMark\".*?Visibility=\")Collapsed(\")", "$1Visible$2"
-            }
-
-            "MainWindow.xaml.cs" {
-                Write-Output "Applying patch to $file"
-
-                # Update logic to mark days with events
-                $content = $content -replace "(?<=CalendarDayButtonExtensions.SetHasEvents\(dayButton, )(false)(?=\);)", "true"
-            }
-        }
-
-        # Write the modified content back to the file
-        Set-Content -Path $file -Value $content
+    if ($content -match $oldStylePattern) {
+        Write-Output "Found existing style block. Replacing..."
+        $updatedContent = $content -replace $oldStylePattern, $newStyle
+        
+        # Write the updated content back to the file
+        Set-Content -Path $filePath -Value $updatedContent
+        Write-Output "Successfully updated the style in $filePath"
     } else {
-        Write-Output "File $file not found. Skipping."
+        Write-Error "Could not find the EventDayStyle block in the XAML file"
     }
+} catch {
+    Write-Error "An error occurred: $_"
 }
-
-# Generate checksums for verification
-$checksums = @()
-foreach ($file in $filesToPatch) {
-    if (Test-Path -Path $file) {
-        $md5 = Get-FileHash -Path $file -Algorithm MD5 | Select-Object -ExpandProperty Hash
-        $lines = (Get-Content -Path $file).Count
-        $words = (Get-Content -Path $file | ForEach-Object { $_ -split "\s+" }).Count
-        $checksums += "$file > MD5: $md5, #lines: $lines, #words: $words"
-    }
-}
-
-# Output checksums for verification
-Write-Output "Checksums for verification:"
-$checksums | ForEach-Object { Write-Output $_ }

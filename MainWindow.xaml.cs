@@ -8,10 +8,11 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Collections.Generic;
 using Microsoft.Win32;
+using MahApps.Metro.Controls;
 
 namespace GoogleCalendarNotifier
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : MetroWindow
     {
         private readonly IGoogleCalendarService _calendarService;
         private readonly CalendarMonitorService _monitorService;
@@ -29,12 +30,11 @@ namespace GoogleCalendarNotifier
             _configManager = configManager;
             _dateEvents = new Dictionary<DateTime, List<CalendarEvent>>();
             _allEvents = new List<CalendarEvent>();
-            
-            MainCalendar.DisplayDateStart = DateTime.Today;
+
             MainCalendar.DisplayDateEnd = DateTime.Today.AddDays(90);
-            
+
             InitializeAutoStartCheckbox();
-            
+
             // Initial data load
             _ = RefreshEventsAsync();
         }
@@ -71,11 +71,11 @@ namespace GoogleCalendarNotifier
                 var startDate = DateTime.Today;
                 var endDate = startDate.AddDays(90);
                 _allEvents = (await _calendarService.GetEventsAsync(startDate, endDate)).ToList();
-                
+
                 // Group events by date
                 _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
                                      .ToDictionary(g => g.Key, g => g.ToList());
-                
+
                 UpdateCalendarEventIndicators();
                 EventsListView.ItemsSource = _allEvents;
             }
@@ -103,7 +103,7 @@ namespace GoogleCalendarNotifier
             if (MainCalendar.Template == null) return Enumerable.Empty<CalendarDayButton>();
             var monthView = MainCalendar.Template.FindName("PART_CalendarView", MainCalendar) as Calendar;
             if (monthView == null) return Enumerable.Empty<CalendarDayButton>();
-            
+
             return LogicalTreeHelper.GetChildren(monthView)
                 .OfType<CalendarDayButton>();
         }
