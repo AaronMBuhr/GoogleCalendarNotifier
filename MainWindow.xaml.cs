@@ -3,12 +3,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Collections.Generic;
 using Microsoft.Win32;
 using MahApps.Metro.Controls;
+using System.Diagnostics;
 
 namespace GoogleCalendarNotifier
 {
@@ -21,91 +20,99 @@ namespace GoogleCalendarNotifier
         private Dictionary<DateTime, List<CalendarEvent>> _dateEvents;
         private const string APP_NAME = "GoogleCalendarNotifier";
         private const string RUN_LOCATION = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+        private bool _suppressSelectionChange = false;
 
         public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, ConfigManager configManager)
         {
             InitializeComponent();
+            Debug.WriteLine("MainWindow: Constructor");
+
             _calendarService = calendarService;
             _monitorService = monitorService;
             _configManager = configManager;
             _dateEvents = new Dictionary<DateTime, List<CalendarEvent>>();
             _allEvents = new List<CalendarEvent>();
 
-            MainCalendar.DisplayDateEnd = DateTime.Today.AddDays(90);
-
-            InitializeAutoStartCheckbox();
-
-            // Initial data load
-            _ = RefreshEventsAsync();
+            // For testing, set up some fake events
+            SetupTestData();
         }
 
-        private void InitializeAutoStartCheckbox()
+        private void SetupTestData()
         {
-            using (var key = Registry.CurrentUser.OpenSubKey(RUN_LOCATION))
+            Debug.WriteLine("MainWindow: Setting up test data");
+            
+            // Create some test events
+            var today = DateTime.Today;
+            var tomorrow = today.AddDays(1);
+            var nextWeek = today.AddDays(7);
+
+            _allEvents = new List<CalendarEvent>
             {
-                AutoStartCheckBox.IsChecked = key?.GetValue(APP_NAME) != null;
-            }
-            AutoStartCheckBox.Checked += OnAutoStartChanged;
-            AutoStartCheckBox.Unchecked += OnAutoStartChanged;
+                new CalendarEvent 
+                { 
+                    Title = "Test Event 1", 
+                    StartTime = today.AddHours(14),
+                    EndTime = today.AddHours(15)
+                },
+                new CalendarEvent 
+                { 
+                    Title = "Test Event 2",
+                    StartTime = tomorrow.AddHours(10),
+                    EndTime = tomorrow.AddHours(11)
+                },
+                new CalendarEvent 
+                { 
+                    Title = "Test Event 3",
+                    StartTime = nextWeek.AddHours(9),
+                    EndTime = nextWeek.AddHours(10)
+                }
+            };
+
+            // Group events by date
+            _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
+                                  .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Update calendar with test data
+            MainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+            EventsListView.ItemsSource = _allEvents;
         }
 
-        private void OnAutoStartChanged(object sender, RoutedEventArgs e)
+        private void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            using (var key = Registry.CurrentUser.OpenSubKey(RUN_LOCATION, true))
+            Debug.WriteLine($"MainWindow: Calendar selection changed");
+            if (MainCalendar.SelectedDate.HasValue)
             {
-                if (AutoStartCheckBox.IsChecked == true)
+                var selectedDate = MainCalendar.SelectedDate.Value;
+                Debug.WriteLine($"  Selected date: {selectedDate:d}");
+                HighlightEventsByDate(selectedDate);
+
+                // Find events for the selected date
+                if (_dateEvents.TryGetValue(selectedDate.Date, out var dateEvents))
                 {
-                    key?.SetValue(APP_NAME, System.Reflection.Assembly.GetExecutingAssembly().Location);
+                    // Select the first event for this date in the ListView
+                    _suppressSelectionChange = true;
+                    EventsListView.SelectedItems.Clear();
+                    foreach (var evt in dateEvents)
+                    {
+                        EventsListView.SelectedItems.Add(evt);
+                    }
+                    _suppressSelectionChange = false;
+
+                    // Scroll the first event into view
+                    if (dateEvents.Any())
+                    {
+                        EventsListView.ScrollIntoView(dateEvents[0]);
+                    }
                 }
                 else
                 {
-                    key?.DeleteValue(APP_NAME, false);
+                    // No events on this date, clear selection
+                    _suppressSelectionChange = true;
+                    EventsListView.SelectedItems.Clear();
+                    _suppressSelectionChange = false;
+                    EventDetailsTextBox.Clear();
                 }
             }
-        }
-
-        private async Task RefreshEventsAsync()
-        {
-            try
-            {
-                var startDate = DateTime.Today;
-                var endDate = startDate.AddDays(90);
-                _allEvents = (await _calendarService.GetEventsAsync(startDate, endDate)).ToList();
-
-                // Group events by date
-                _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
-                                     .ToDictionary(g => g.Key, g => g.ToList());
-
-                UpdateCalendarEventIndicators();
-                EventsListView.ItemsSource = _allEvents;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error refreshing events: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void UpdateCalendarEventIndicators()
-        {
-            foreach (CalendarDayButton dayButton in GetCalendarDayButtons())
-            {
-                if (dayButton.DataContext is DateTime date)
-                {
-                    var hasEvents = _dateEvents.ContainsKey(date.Date);
-                    CalendarDayButtonExtensions.SetHasEvents(dayButton, hasEvents);
-                }
-            }
-        }
-
-        private IEnumerable<CalendarDayButton> GetCalendarDayButtons()
-        {
-            if (MainCalendar.Template == null) return Enumerable.Empty<CalendarDayButton>();
-            var monthView = MainCalendar.Template.FindName("PART_CalendarView", MainCalendar) as Calendar;
-            if (monthView == null) return Enumerable.Empty<CalendarDayButton>();
-
-            return LogicalTreeHelper.GetChildren(monthView)
-                .OfType<CalendarDayButton>();
         }
 
         private void HighlightEventsByDate(DateTime date)
@@ -114,21 +121,28 @@ namespace GoogleCalendarNotifier
             {
                 evt.IsHighlighted = evt.StartTime.Date == date.Date;
             }
-        }
 
-        private void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (MainCalendar.SelectedDate.HasValue)
+            // Refresh the ListView to show highlighting
+            if (EventsListView.ItemsSource != null)
             {
-                HighlightEventsByDate(MainCalendar.SelectedDate.Value);
+                CollectionViewSource.GetDefaultView(EventsListView.ItemsSource).Refresh();
             }
         }
 
         private void OnEventTableSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_suppressSelectionChange) return;
+
             if (EventsListView.SelectedItem is CalendarEvent selectedEvent)
             {
+                // Set the display date to the month of the selected event
+                MainCalendar.DisplayDate = selectedEvent.StartTime.Date;
+                
+                // Then set the selected date (this will also highlight it)
+                _suppressSelectionChange = true;
                 MainCalendar.SelectedDate = selectedEvent.StartTime.Date;
+                _suppressSelectionChange = false;
+                
                 HighlightEventsByDate(selectedEvent.StartTime.Date);
 
                 EventDetailsTextBox.Text = $"Event: {selectedEvent.Title}\n\n" +
@@ -138,15 +152,10 @@ namespace GoogleCalendarNotifier
                     (selectedEvent.ReminderTime.HasValue ? $"Reminder: {selectedEvent.ReminderTime.Value} before start\n" : "") +
                     (!string.IsNullOrEmpty(selectedEvent.Description) ? $"\nDescription:\n{selectedEvent.Description}" : "");
             }
-            else
+            else if (EventsListView.SelectedItems.Count == 0)
             {
                 EventDetailsTextBox.Clear();
             }
-        }
-
-        private async void OnRefreshClick(object sender, RoutedEventArgs e)
-        {
-            await RefreshEventsAsync();
         }
     }
 }

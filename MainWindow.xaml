@@ -27,7 +27,9 @@
 
             <!-- Custom colors -->
             <SolidColorBrush x:Key="OtherMonthBrush" Color="#FF404040"/>
-
+            <SolidColorBrush x:Key="CurrentDayBrush" Color="#FF2D89EF"/>
+            <SolidColorBrush x:Key="SelectedDayBrush" Color="#FF1E7145"/>
+            
             <!-- Calendar Day Button Style -->
             <Style x:Key="CalendarDayButtonStyle" TargetType="CalendarDayButton">
                 <Setter Property="Background" Value="Transparent"/>
@@ -39,39 +41,68 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="CalendarDayButton">
-                            <Grid x:Name="Root">
+                            <Grid>
+                                <!-- Base background -->
                                 <Border x:Name="BackgroundBorder" 
                                         Background="{TemplateBinding Background}"
-                                        CornerRadius="0"/>
-                                <TextBlock x:Name="NormalText"
+                                        BorderThickness="0"/>
+                                
+                                <!-- Selected day highlight -->
+                                <Border x:Name="SelectedBorder"
+                                        Background="Transparent"
+                                        BorderThickness="2"
+                                        Margin="1"
+                                        BorderBrush="Transparent"
+                                        CornerRadius="2"/>
+                                
+                                <!-- Current day highlight -->
+                                <Border x:Name="TodayBorder"
+                                        Background="Transparent"
+                                        BorderThickness="2"
+                                        Margin="1"
+                                        BorderBrush="Transparent"
+                                        CornerRadius="2"/>
+                                
+                                <!-- Events indicator -->
+                                <Border x:Name="EventsBorder"
+                                        Height="2"
+                                        Margin="4,0,4,2"
+                                        VerticalAlignment="Bottom"
+                                        Background="Transparent"/>
+                                
+                                <!-- Content -->
+                                <TextBlock x:Name="ContentText"
                                          Text="{TemplateBinding Content}"
                                          HorizontalAlignment="Center"
-                                         VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource TemplatedParent}}" Value="True">
-                                                    <Setter Property="TextDecorations" Value="Underline"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                         VerticalAlignment="Center"/>
                             </Grid>
                             <ControlTemplate.Triggers>
-                                <Trigger Property="IsFocused" Value="True">
-                                    <Setter TargetName="BackgroundBorder" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                                    <Setter TargetName="BackgroundBorder" Property="BorderThickness" Value="1"/>
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                                    <Setter TargetName="NormalText" Property="Foreground" Value="White"/>
-                                </Trigger>
+                                <!-- Mouse over effect -->
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent3}"/>
+                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent4}"/>
                                 </Trigger>
+                                
+                                <!-- Selected day -->
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#3F5D89EF"/>
+                                </Trigger>
+                                
+                                <!-- Current day -->
+                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsCurrentDay), RelativeSource={RelativeSource Self}}" Value="True">
+                                    <Setter TargetName="TodayBorder" Property="BorderBrush" Value="{StaticResource CurrentDayBrush}"/>
+                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#6F1E7145"/>
+                                    <Setter TargetName="ContentText" Property="FontWeight" Value="Bold"/>
+                                </DataTrigger>
+                                
+                                <!-- Days with events -->
+                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource Self}}" Value="True">
+                                    <Setter TargetName="EventsBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                                </DataTrigger>
+                                
+                                <!-- Disabled dates (other months) -->
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="NormalText" Property="Foreground" Value="{StaticResource OtherMonthBrush}"/>
+                                    <Setter TargetName="ContentText" Property="Foreground" Value="{StaticResource OtherMonthBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -79,6 +110,10 @@
                 </Setter>
             </Style>
 
+            <!-- Style for CustomCalendar -->
+            <Style TargetType="{x:Type local:CustomCalendar}" BasedOn="{StaticResource MahApps.Styles.Calendar}">
+                <Setter Property="CalendarDayButtonStyle" Value="{StaticResource CalendarDayButtonStyle}"/>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -105,12 +140,10 @@
         <StackPanel Grid.Row="1" Grid.Column="0" Width="300">
             <!-- Calendar Section -->
             <mah:MetroHeader Header="Calendar">
-                <Calendar x:Name="MainCalendar"
+                <local:CustomCalendar x:Name="MainCalendar"
                          Margin="0,0,10,10"
                          SelectedDatesChanged="OnCalendarSelectionChanged"
-                         HorizontalAlignment="Center"
-                         Style="{DynamicResource MahApps.Styles.Calendar}"
-                         CalendarDayButtonStyle="{StaticResource CalendarDayButtonStyle}"/>
+                         HorizontalAlignment="Center"/>
             </mah:MetroHeader>
 
             <!-- Event Details -->

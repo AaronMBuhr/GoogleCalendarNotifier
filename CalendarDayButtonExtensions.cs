@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 
@@ -12,6 +13,13 @@ namespace GoogleCalendarNotifier
                 typeof(CalendarDayButtonExtensions),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty IsCurrentDayProperty =
+            DependencyProperty.RegisterAttached(
+                "IsCurrentDay",
+                typeof(bool),
+                typeof(CalendarDayButtonExtensions),
+                new PropertyMetadata(false));
+
         public static void SetHasEvents(CalendarDayButton element, bool value)
         {
             element.SetValue(HasEventsProperty, value);
@@ -20,6 +28,16 @@ namespace GoogleCalendarNotifier
         public static bool GetHasEvents(CalendarDayButton element)
         {
             return (bool)element.GetValue(HasEventsProperty);
+        }
+
+        public static void SetIsCurrentDay(CalendarDayButton element, bool value)
+        {
+            element.SetValue(IsCurrentDayProperty, value);
+        }
+
+        public static bool GetIsCurrentDay(CalendarDayButton element)
+        {
+            return (bool)element.GetValue(IsCurrentDayProperty);
         }
     }
 }
