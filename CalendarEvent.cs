@@ -27,6 +27,20 @@ namespace GoogleCalendarNotifier
             }
         }
 
+        private DateTime? _snoozeUntil;
+        public DateTime? SnoozeUntil
+        {
+            get => _snoozeUntil;
+            set
+            {
+                if (_snoozeUntil != value)
+                {
+                    _snoozeUntil = value;
+                    OnPropertyChanged(nameof(SnoozeUntil));
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged(string propertyName)
         {

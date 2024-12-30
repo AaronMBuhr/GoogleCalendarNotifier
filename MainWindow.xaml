@@ -25,6 +25,9 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Blue.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Converters -->
+            <local:SnoozeTimeDisplayConverter x:Key="SnoozeTimeDisplayConverter"/>
+
             <!-- Custom colors -->
             <SolidColorBrush x:Key="OtherMonthBrush" Color="#FF404040"/>
             <SolidColorBrush x:Key="CurrentDayBrush" Color="#FF2D89EF"/>
@@ -120,10 +123,10 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -137,21 +140,20 @@
         </mah:MetroHeader>
 
         <!-- Left Column -->
-        <StackPanel Grid.Row="1" Grid.Column="0" Width="300">
+        <StackPanel Grid.Row="1" Grid.Column="0">
             <!-- Calendar Section -->
-            <mah:MetroHeader Header="Calendar">
+            <mah:MetroHeader Header="Calendar" Margin="0,0,10,10">
                 <local:CustomCalendar x:Name="MainCalendar"
-                         Margin="0,0,10,10"
                          SelectedDatesChanged="OnCalendarSelectionChanged"
                          HorizontalAlignment="Center"/>
             </mah:MetroHeader>
 
             <!-- Event Details -->
-            <mah:MetroHeader Header="Event Details">
+            <mah:MetroHeader Header="Event Details" Margin="0,0,10,0">
                 <TextBox x:Name="EventDetailsTextBox"
                         IsReadOnly="True"
                         TextWrapping="Wrap"
-                        Height="120"
+                        Height="200"
                         Style="{StaticResource MahApps.Styles.TextBox}"
                         ScrollViewer.VerticalScrollBarVisibility="Auto"/>
             </mah:MetroHeader>
@@ -159,14 +161,21 @@
 
         <!-- Events Table -->
         <mah:MetroHeader Grid.Row="1" Grid.Column="1"
-                        Header="Upcoming Events">
+                        Header="Upcoming Events"
+                        Margin="0,0,0,0">
             <ListView x:Name="EventsListView"
                      SelectionChanged="OnEventTableSelectionChanged"
                      Style="{StaticResource MahApps.Styles.ListView}"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Clear Snooze" Click="ClearSnooze_Click"/>
+                    </ContextMenu>
+                </ListView.ContextMenu>
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Event" Width="200">
+                        <GridViewColumn Header="Event" Width="240">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding Title}"/>
@@ -187,10 +196,14 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="Reminder" Width="100">
+                        <GridViewColumn Header="Snooze Until" Width="150">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding ReminderTime}"/>
+                                    <TextBlock Text="{Binding SnoozeUntil, Converter={StaticResource SnoozeTimeDisplayConverter}}">
+                                        <TextBlock.ToolTip>
+                                            <ToolTip Content="{Binding SnoozeUntil, Converter={StaticResource SnoozeTimeDisplayConverter}, ConverterParameter=detailed}"/>
+                                        </TextBlock.ToolTip>
+                                    </TextBlock>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

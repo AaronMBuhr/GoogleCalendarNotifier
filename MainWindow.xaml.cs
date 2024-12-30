@@ -5,9 +5,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Microsoft.Win32;
 using MahApps.Metro.Controls;
 using System.Diagnostics;
+using System.Windows.Threading;
 
 namespace GoogleCalendarNotifier
 {
@@ -16,13 +18,17 @@ namespace GoogleCalendarNotifier
         private readonly IGoogleCalendarService _calendarService;
         private readonly CalendarMonitorService _monitorService;
         private readonly ConfigManager _configManager;
-        private List<CalendarEvent> _allEvents;
+        private readonly INotificationService _notificationService;
+        private readonly EventTrackingService _eventTrackingService;
+        private ObservableCollection<CalendarEvent> _allEvents;
         private Dictionary<DateTime, List<CalendarEvent>> _dateEvents;
         private const string APP_NAME = "GoogleCalendarNotifier";
         private const string RUN_LOCATION = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private bool _suppressSelectionChange = false;
 
-        public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, ConfigManager configManager)
+        public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, 
+                         ConfigManager configManager, INotificationService notificationService,
+                         EventTrackingService eventTrackingService)
         {
             InitializeComponent();
             Debug.WriteLine("MainWindow: Constructor");
@@ -30,11 +36,54 @@ namespace GoogleCalendarNotifier
             _calendarService = calendarService;
             _monitorService = monitorService;
             _configManager = configManager;
+            _notificationService = notificationService;
+            _eventTrackingService = eventTrackingService;
             _dateEvents = new Dictionary<DateTime, List<CalendarEvent>>();
-            _allEvents = new List<CalendarEvent>();
+            _allEvents = new ObservableCollection<CalendarEvent>();
 
             // For testing, set up some fake events
             SetupTestData();
+
+            // Set up debug notification
+            SetupDebugNotification();
+
+            // Subscribe to snooze updates
+            _eventTrackingService.SubscribeToSnoozeUpdates((sender, eventId) =>
+            {
+                var evt = _allEvents.FirstOrDefault(e => e.Id == eventId);
+                if (evt != null)
+                {
+                    evt.SnoozeUntil = _eventTrackingService.GetSnoozeTime(eventId);
+                }
+            });
+        }
+
+        private void ClearSnooze_Click(object sender, RoutedEventArgs e)
+        {
+            if (EventsListView.SelectedItem is CalendarEvent selectedEvent)
+            {
+                Debug.WriteLine($"Clearing snooze for event: {selectedEvent.Title}");
+                _eventTrackingService.ClearSnoozeTime(selectedEvent.Id);
+                selectedEvent.SnoozeUntil = null;
+            }
+        }
+
+        private void SetupDebugNotification()
+        {
+            var timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromSeconds(10);
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                _notificationService.ShowNotification(
+                    "Debug Event",
+                    "This is a test notification that appears 10 seconds after startup.\n\n" +
+                    "Start Time: " + DateTime.Now.ToString("g") + "\n" +
+                    "Location: Test Location\n" +
+                    "Description: This is a test event description.",
+                    NotificationType.Success);
+            };
+            timer.Start();
         }
 
         private void SetupTestData()
@@ -46,27 +95,28 @@ namespace GoogleCalendarNotifier
             var tomorrow = today.AddDays(1);
             var nextWeek = today.AddDays(7);
 
-            _allEvents = new List<CalendarEvent>
-            {
-                new CalendarEvent 
-                { 
-                    Title = "Test Event 1", 
-                    StartTime = today.AddHours(14),
-                    EndTime = today.AddHours(15)
-                },
-                new CalendarEvent 
-                { 
-                    Title = "Test Event 2",
-                    StartTime = tomorrow.AddHours(10),
-                    EndTime = tomorrow.AddHours(11)
-                },
-                new CalendarEvent 
-                { 
-                    Title = "Test Event 3",
-                    StartTime = nextWeek.AddHours(9),
-                    EndTime = nextWeek.AddHours(10)
-                }
-            };
+            _allEvents.Clear();
+            _allEvents.Add(new CalendarEvent 
+            { 
+                Id = "event1",
+                Title = "Test Event 1", 
+                StartTime = today.AddHours(14),
+                EndTime = today.AddHours(15)
+            });
+            _allEvents.Add(new CalendarEvent 
+            { 
+                Id = "event2",
+                Title = "Test Event 2",
+                StartTime = tomorrow.AddHours(10),
+                EndTime = tomorrow.AddHours(11)
+            });
+            _allEvents.Add(new CalendarEvent 
+            { 
+                Id = "event3",
+                Title = "Test Event 3",
+                StartTime = nextWeek.AddHours(9),
+                EndTime = nextWeek.AddHours(10)
+            });
 
             // Group events by date
             _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
@@ -121,12 +171,6 @@ namespace GoogleCalendarNotifier
             {
                 evt.IsHighlighted = evt.StartTime.Date == date.Date;
             }
-
-            // Refresh the ListView to show highlighting
-            if (EventsListView.ItemsSource != null)
-            {
-                CollectionViewSource.GetDefaultView(EventsListView.ItemsSource).Refresh();
-            }
         }
 
         private void OnEventTableSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -145,11 +189,16 @@ namespace GoogleCalendarNotifier
                 
                 HighlightEventsByDate(selectedEvent.StartTime.Date);
 
+                var snoozeInfo = selectedEvent.SnoozeUntil.HasValue 
+                    ? $"\nSnoozed until: {selectedEvent.SnoozeUntil.Value:MM/dd/yyyy HH:mm}"
+                    : "";
+
                 EventDetailsTextBox.Text = $"Event: {selectedEvent.Title}\n\n" +
                     $"Start: {selectedEvent.StartTime:MM/dd/yyyy HH:mm}\n" +
                     $"End: {selectedEvent.EndTime:MM/dd/yyyy HH:mm}\n" +
                     $"All Day: {selectedEvent.IsAllDay}\n" +
                     (selectedEvent.ReminderTime.HasValue ? $"Reminder: {selectedEvent.ReminderTime.Value} before start\n" : "") +
+                    snoozeInfo +
                     (!string.IsNullOrEmpty(selectedEvent.Description) ? $"\nDescription:\n{selectedEvent.Description}" : "");
             }
             else if (EventsListView.SelectedItems.Count == 0)

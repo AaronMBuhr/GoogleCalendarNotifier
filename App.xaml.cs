@@ -19,12 +19,12 @@ namespace GoogleCalendarNotifier
                 await calendarService.InitializeAsync();  // Now properly initializing the service
                 
                 var configManager = new ConfigManager();
-                var notificationService = new WindowsNotificationService();
                 _eventTrackingService = new EventTrackingService();
+                var notificationService = new WindowsNotificationService(_eventTrackingService);
                 var monitorService = new CalendarMonitorService(calendarService, notificationService, _eventTrackingService);
 
                 // Create and show main window
-                var mainWindow = new MainWindow(calendarService, monitorService, configManager);
+                var mainWindow = new MainWindow(calendarService, monitorService, configManager, notificationService, _eventTrackingService);
                 mainWindow.Show();
             }
             catch (Exception ex)
