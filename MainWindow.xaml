@@ -101,7 +101,42 @@
                                 
                                 <!-- Days with events -->
                                 <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource Self}}" Value="True">
+                                    <Setter TargetName="EventsBorder" Property="Background" Value="#1B9D44"/>
+                                </DataTrigger>
+                                
+                                <!-- Days with tasks - must come after the HasEvents trigger -->
+                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasTasks), RelativeSource={RelativeSource Self}}" Value="True">
                                     <Setter TargetName="EventsBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                                </DataTrigger>
+                                
+                                <!-- Days with holidays - a dotted dark green line -->
+                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasHolidays), RelativeSource={RelativeSource Self}}" Value="True">
+                                    <Setter TargetName="EventsBorder" Property="Background">
+                                        <Setter.Value>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#0A6B25" Offset="0.0"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.1"/>
+                                                <GradientStop Color="Transparent" Offset="0.11"/>
+                                                <GradientStop Color="Transparent" Offset="0.2"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.21"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.3"/>
+                                                <GradientStop Color="Transparent" Offset="0.31"/>
+                                                <GradientStop Color="Transparent" Offset="0.4"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.41"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.5"/>
+                                                <GradientStop Color="Transparent" Offset="0.51"/>
+                                                <GradientStop Color="Transparent" Offset="0.6"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.61"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.7"/>
+                                                <GradientStop Color="Transparent" Offset="0.71"/>
+                                                <GradientStop Color="Transparent" Offset="0.8"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.81"/>
+                                                <GradientStop Color="#0A6B25" Offset="0.9"/>
+                                                <GradientStop Color="Transparent" Offset="0.91"/>
+                                                <GradientStop Color="Transparent" Offset="1.0"/>
+                                            </LinearGradientBrush>
+                                        </Setter.Value>
+                                    </Setter>
                                 </DataTrigger>
                                 
                                 <!-- Other month days -->

@@ -12,6 +12,8 @@ namespace GoogleCalendarNotifier
     public class CustomCalendar : Calendar
     {
         private HashSet<DateTime> datesWithEvents = new HashSet<DateTime>();
+        private HashSet<DateTime> datesWithTasks = new HashSet<DateTime>();
+        private HashSet<DateTime> datesWithHolidays = new HashSet<DateTime>();
         private DateTime? lastSelectedDate;
 
         public CustomCalendar()
@@ -83,6 +85,22 @@ namespace GoogleCalendarNotifier
             Debug.WriteLine($"CustomCalendar: Event dates - {string.Join(", ", datesWithEvents.Select(d => d.ToString("d")))}");
             UpdateCalendarDayButtons();
         }
+        
+        public void SetDatesWithTasks(IEnumerable<DateTime> dates)
+        {
+            datesWithTasks = new HashSet<DateTime>(dates.Select(d => d.Date));
+            Debug.WriteLine($"CustomCalendar: SetDatesWithTasks - Count: {datesWithTasks.Count}");
+            Debug.WriteLine($"CustomCalendar: Task dates - {string.Join(", ", datesWithTasks.Select(d => d.ToString("d")))}");
+            UpdateCalendarDayButtons();
+        }
+        
+        public void SetDatesWithHolidays(IEnumerable<DateTime> dates)
+        {
+            datesWithHolidays = new HashSet<DateTime>(dates.Select(d => d.Date));
+            Debug.WriteLine($"CustomCalendar: SetDatesWithHolidays - Count: {datesWithHolidays.Count}");
+            Debug.WriteLine($"CustomCalendar: Holiday dates - {string.Join(", ", datesWithHolidays.Select(d => d.ToString("d")))}");
+            UpdateCalendarDayButtons();
+        }
 
         private void UpdateCalendarDayButtons()
         {
@@ -111,6 +129,14 @@ namespace GoogleCalendarNotifier
             // Set HasEvents property
             var hasEvents = datesWithEvents.Contains(date.Date);
             CalendarDayButtonExtensions.SetHasEvents(button, hasEvents);
+            
+            // Set HasTasks property
+            var hasTasks = datesWithTasks.Contains(date.Date);
+            CalendarDayButtonExtensions.SetHasTasks(button, hasTasks);
+            
+            // Set HasHolidays property
+            var hasHolidays = datesWithHolidays.Contains(date.Date);
+            CalendarDayButtonExtensions.SetHasHolidays(button, hasHolidays);
 
             // Set IsCurrentDay property
             CalendarDayButtonExtensions.SetIsCurrentDay(button, isToday);

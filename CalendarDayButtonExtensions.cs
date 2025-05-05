@@ -27,6 +27,20 @@ namespace GoogleCalendarNotifier
                 typeof(CalendarDayButtonExtensions),
                 new PropertyMetadata(false));
 
+        public static readonly DependencyProperty HasTasksProperty =
+            DependencyProperty.RegisterAttached(
+                "HasTasks",
+                typeof(bool),
+                typeof(CalendarDayButtonExtensions),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty HasHolidaysProperty =
+            DependencyProperty.RegisterAttached(
+                "HasHolidays",
+                typeof(bool),
+                typeof(CalendarDayButtonExtensions),
+                new PropertyMetadata(false));
+
         public static void SetHasEvents(CalendarDayButton element, bool value)
         {
             element.SetValue(HasEventsProperty, value);
@@ -55,6 +69,26 @@ namespace GoogleCalendarNotifier
         public static bool GetIsOtherMonth(CalendarDayButton element)
         {
             return (bool)element.GetValue(IsOtherMonthProperty);
+        }
+
+        public static void SetHasTasks(CalendarDayButton element, bool value)
+        {
+            element.SetValue(HasTasksProperty, value);
+        }
+
+        public static bool GetHasTasks(CalendarDayButton element)
+        {
+            return (bool)element.GetValue(HasTasksProperty);
+        }
+
+        public static void SetHasHolidays(CalendarDayButton element, bool value)
+        {
+            element.SetValue(HasHolidaysProperty, value);
+        }
+
+        public static bool GetHasHolidays(CalendarDayButton element)
+        {
+            return (bool)element.GetValue(HasHolidaysProperty);
         }
     }
 }

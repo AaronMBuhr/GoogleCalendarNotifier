@@ -165,6 +165,20 @@ namespace GoogleCalendarNotifier
                 if (_mainCalendar != null)
                 {
                     _mainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+                    
+                    // Set task dates separately
+                    var taskDates = _allEvents
+                        .Where(e => e.IsTask)
+                        .Select(e => e.StartTime.Date)
+                        .Distinct();
+                    _mainCalendar.SetDatesWithTasks(taskDates);
+                    
+                    // Set holiday dates separately
+                    var holidayDates = _allEvents
+                        .Where(e => e.IsHoliday)
+                        .Select(e => e.StartTime.Date)
+                        .Distinct();
+                    _mainCalendar.SetDatesWithHolidays(holidayDates);
                 }
                 
                 if (_eventsListView != null)
@@ -276,6 +290,20 @@ namespace GoogleCalendarNotifier
             if (_mainCalendar != null)
             {
                 _mainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+                
+                // Set task dates for test data
+                var taskDates = _allEvents
+                    .Where(e => e.IsTask)
+                    .Select(e => e.StartTime.Date)
+                    .Distinct();
+                _mainCalendar.SetDatesWithTasks(taskDates);
+                
+                // Set holiday dates for test data
+                var holidayDates = _allEvents
+                    .Where(e => e.IsHoliday)
+                    .Select(e => e.StartTime.Date)
+                    .Distinct();
+                _mainCalendar.SetDatesWithHolidays(holidayDates);
             }
             
             if (_eventsListView != null)
