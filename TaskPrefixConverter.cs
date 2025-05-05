@@ -10,7 +10,13 @@ namespace GoogleCalendarNotifier
         {
             if (value is bool isTask && isTask)
             {
-                return "⬜ "; // Checkbox symbol for tasks
+                // If parameter is provided and it contains a boolean (IsCompleted)
+                if (parameter is bool isCompleted && isCompleted)
+                {
+                    return "✅ "; // Checked checkbox symbol for completed tasks
+                }
+                
+                return "⬜ "; // Unchecked checkbox symbol for uncompleted tasks
             }
             
             return "";

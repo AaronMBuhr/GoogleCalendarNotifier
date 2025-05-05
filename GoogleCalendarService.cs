@@ -328,7 +328,7 @@ namespace GoogleCalendarNotifier
                     
                     // Get tasks for this list
                     var tasksRequest = _tasksService.Tasks.List(taskList.Id);
-                    tasksRequest.ShowCompleted = false; // Only show incomplete tasks
+                    tasksRequest.ShowCompleted = true; // Show both completed and incomplete tasks
                     tasksRequest.MaxResults = 100;
                     
                     Debug.WriteLine($"Requesting tasks from list {taskList.Title}");
@@ -345,7 +345,7 @@ namespace GoogleCalendarNotifier
                     // Log all tasks in this list
                     foreach (var task in tasks.Items)
                     {
-                        Debug.WriteLine($"Task: ID={task.Id}, Title={task.Title}, Due={(task.Due ?? "null")}, Completed={(task.Completed ?? "null")}");
+                        Debug.WriteLine($"Task: ID={task.Id}, Title={task.Title}, Due={(task.Due ?? "null")}, Completed={(task.Completed ?? "null")}, Status={task.Status}");
                     }
                     
                     foreach (var task in tasks.Items)
@@ -453,7 +453,8 @@ namespace GoogleCalendarNotifier
                                 CalendarId = taskList.Id,
                                 CalendarName = $"{taskList.Title} (Tasks)",
                                 IsHoliday = false,
-                                IsTask = true
+                                IsTask = true,
+                                IsCompleted = task.Status?.Equals("completed", StringComparison.OrdinalIgnoreCase) ?? false
                             });
                             
                             Debug.WriteLine($"Task added to event list: {task.Title}");
@@ -537,11 +538,11 @@ namespace GoogleCalendarNotifier
         private bool IsHolidayCalendar(CalendarListEntry calendar)
         {
             if (calendar == null) return false;
-            
+             
             // Check if this is a holiday calendar or other global calendar
             var name = calendar.Summary?.ToLowerInvariant() ?? "";
             var description = calendar.Description?.ToLowerInvariant() ?? "";
-            
+             
             // Common holiday calendar identifiers
             var holidayKeywords = new[] { 
                 "holiday", "holidays", "vacation", 
@@ -549,10 +550,47 @@ namespace GoogleCalendarNotifier
                 "statutory holidays", "festive", "national holiday",
                 "birthdays", "birth days", "important dates"
             };
-            
+             
             // Check for holiday keywords in name or description
             return holidayKeywords.Any(keyword => 
                 name.Contains(keyword) || description.Contains(keyword));
+        }
+        
+        public async System.Threading.Tasks.Task<bool> CompleteTaskAsync(string taskId, string taskListId)
+        {
+            if (_tasksService == null)
+                throw new InvalidOperationException("Tasks service not initialized. Call InitializeAsync first.");
+                
+            try
+            {
+                Debug.WriteLine($"Marking task as completed: TaskId={taskId}, TaskListId={taskListId}");
+                
+                // First, get the current task to update it
+                var getRequest = _tasksService.Tasks.Get(taskListId, taskId);
+                var task = await getRequest.ExecuteAsync();
+                
+                if (task == null)
+                {
+                    Debug.WriteLine($"Task not found: TaskId={taskId}");
+                    return false;
+                }
+                
+                // Set completion status
+                task.Status = "completed";
+                task.Completed = DateTime.UtcNow.ToString("o"); // ISO 8601 format with 'o' format specifier
+                
+                // Update the task in Google Tasks
+                var updateRequest = _tasksService.Tasks.Update(task, taskListId, taskId);
+                var updatedTask = await updateRequest.ExecuteAsync();
+                
+                Debug.WriteLine($"Task marked as completed: {updatedTask.Title}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error completing task: {ex.Message}");
+                return false;
+            }
         }
     }
 }

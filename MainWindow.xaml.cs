@@ -40,7 +40,20 @@ namespace GoogleCalendarNotifier
         {
             // In a compiled WPF app, InitializeComponent would be auto-generated
             // Adding a dummy method here for design-time compatibility
-            try { InitializeComponent(); } catch { /* Ignore - component will be initialized at runtime */ }
+            try 
+            { 
+                // Check if the method exists using reflection
+                var method = this.GetType().GetMethod("InitializeComponent", 
+                    System.Reflection.BindingFlags.Instance | 
+                    System.Reflection.BindingFlags.Public | 
+                    System.Reflection.BindingFlags.NonPublic);
+                
+                if (method != null)
+                {
+                    method.Invoke(this, null);
+                }
+            } 
+            catch { /* Ignore - component will be initialized at runtime */ }
             
             Debug.WriteLine("MainWindow: Constructor");
 
@@ -154,6 +167,17 @@ namespace GoogleCalendarNotifier
                 {
                     // Apply any existing snooze settings from tracking service
                     evt.SnoozeUntil = _eventTrackingService.GetSnoozeTime(evt.Id);
+                    _allEvents.Add(evt);
+                }
+                
+                // Sort events chronologically
+                var sortedEvents = _allEvents.OrderBy(e => e.StartTime.Date)
+                                          .ThenBy(e => e.StartTime.TimeOfDay)
+                                          .ToList();
+                
+                _allEvents.Clear();
+                foreach (var evt in sortedEvents)
+                {
                     _allEvents.Add(evt);
                 }
                 
@@ -285,6 +309,17 @@ namespace GoogleCalendarNotifier
             // Group events by date
             _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
                                   .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Sort events chronologically
+            var sortedEvents = _allEvents.OrderBy(e => e.StartTime.Date)
+                                      .ThenBy(e => e.StartTime.TimeOfDay)
+                                      .ToList();
+            
+            _allEvents.Clear();
+            foreach (var evt in sortedEvents)
+            {
+                _allEvents.Add(evt);
+            }
 
             // Update calendar with test data
             if (_mainCalendar != null)
@@ -433,6 +468,96 @@ namespace GoogleCalendarNotifier
                 
                 // Refresh the calendar data with the new filter setting
                 LoadCalendarDataAsync();
+            }
+        }
+        
+        private async void TaskCheckbox_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.DataContext is CalendarEvent calendarEvent)
+            {
+                // Make sure this is a task
+                if (!calendarEvent.IsTask)
+                {
+                    Debug.WriteLine("TaskCheckbox_Click was called on a non-task event");
+                    return;
+                }
+                
+                Debug.WriteLine($"Task completion toggled for: {calendarEvent.Title}, IsCompleted: {checkBox.IsChecked}");
+                
+                // Update the task in Google Tasks if it's checked
+                if (checkBox.IsChecked == true)
+                {
+                    try
+                    {
+                        // The TaskId is stored in the Id property, and the TaskListId is in the CalendarId property
+                        var success = await _calendarService.CompleteTaskAsync(calendarEvent.Id, calendarEvent.CalendarId);
+                        
+                        if (success)
+                        {
+                            // Update the task status in the UI
+                            calendarEvent.IsCompleted = true;
+                            
+                            // Show a toast notification that the task was completed
+                            _notificationService.ShowNotification(
+                                "Task Completed",
+                                $"Task \"{calendarEvent.Title}\" has been marked as completed!",
+                                NotificationType.Success);
+                            
+                            Debug.WriteLine($"Successfully completed task: {calendarEvent.Title}");
+                        }
+                        else
+                        {
+                            // If failed, revert the checkbox
+                            checkBox.IsChecked = false;
+                            calendarEvent.IsCompleted = false;
+                            
+                            // Show an error message
+                            MessageBox.Show(
+                                $"Failed to mark task \"{calendarEvent.Title}\" as completed. Please try again.",
+                                "Task Completion Error",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                            
+                            Debug.WriteLine($"Failed to complete task: {calendarEvent.Title}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If an exception occurred, revert the checkbox
+                        checkBox.IsChecked = false;
+                        calendarEvent.IsCompleted = false;
+                        
+                        // Show an error message
+                        MessageBox.Show(
+                            $"An error occurred while completing the task: {ex.Message}",
+                            "Task Completion Error",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                        
+                        Debug.WriteLine($"Exception completing task: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // Just update the UI since we don't support uncompleting tasks
+                    // (Google Tasks doesn't have a good way to "uncomplete" tasks)
+                    calendarEvent.IsCompleted = false;
+                    Debug.WriteLine($"Task marked as not completed in UI: {calendarEvent.Title}");
+                    
+                    // Show a message that uncompleting tasks is not supported
+                    MessageBox.Show(
+                        "Unmarking tasks as completed is not supported. " +
+                        "You can create a new task if needed.",
+                        "Unsupported Operation",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    
+                    // Set the checkbox back to checked since we don't support uncompleting
+                    if (calendarEvent.IsCompleted)
+                    {
+                        checkBox.IsChecked = true;
+                    }
+                }
             }
         }
     }

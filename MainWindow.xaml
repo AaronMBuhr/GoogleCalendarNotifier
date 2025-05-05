@@ -28,6 +28,9 @@
             <!-- Converters -->
             <local:SnoozeTimeDisplayConverter x:Key="SnoozeTimeDisplayConverter"/>
             <local:TaskPrefixConverter x:Key="TaskPrefixConverter"/>
+            <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <local:TaskCompletionToTextDecorationConverter x:Key="TaskCompletionToTextDecorationConverter"/>
+            <local:TaskStatusConverter x:Key="TaskStatusConverter"/>
 
             <!-- Custom colors -->
             <SolidColorBrush x:Key="OtherMonthBrush" Color="#FF404040"/>
@@ -228,14 +231,30 @@
                         <GridViewColumn Header="Event" Width="240">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock>
-                                        <TextBlock.Text>
-                                            <MultiBinding StringFormat="{}{0}{1}">
-                                                <Binding Path="IsTask" Converter="{StaticResource TaskPrefixConverter}" />
-                                                <Binding Path="Title" />
-                                            </MultiBinding>
-                                        </TextBlock.Text>
-                                    </TextBlock>
+                                    <StackPanel Orientation="Horizontal">
+                                        <!-- Task Checkbox - Only visible for tasks -->
+                                        <CheckBox IsChecked="{Binding IsCompleted, Mode=TwoWay}" 
+                                                 Visibility="{Binding IsTask, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                 Click="TaskCheckbox_Click"
+                                                 Margin="0,0,5,0"/>
+                                        
+                                        <!-- Event/Task Title -->
+                                        <TextBlock>
+                                            <TextBlock.Text>
+                                                <MultiBinding Converter="{StaticResource TaskStatusConverter}">
+                                                    <Binding Path="IsTask"/>
+                                                    <Binding Path="IsCompleted"/>
+                                                    <Binding Path="Title"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                            <TextBlock.TextDecorations>
+                                                <MultiBinding Converter="{StaticResource TaskCompletionToTextDecorationConverter}">
+                                                    <Binding Path="IsTask"/>
+                                                    <Binding Path="IsCompleted"/>
+                                                </MultiBinding>
+                                            </TextBlock.TextDecorations>
+                                        </TextBlock>
+                                    </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
