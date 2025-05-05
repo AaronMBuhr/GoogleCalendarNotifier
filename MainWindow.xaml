@@ -27,6 +27,7 @@
 
             <!-- Converters -->
             <local:SnoozeTimeDisplayConverter x:Key="SnoozeTimeDisplayConverter"/>
+            <local:TaskPrefixConverter x:Key="TaskPrefixConverter"/>
 
             <!-- Custom colors -->
             <SolidColorBrush x:Key="OtherMonthBrush" Color="#FF404040"/>
@@ -103,10 +104,10 @@
                                     <Setter TargetName="EventsBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
                                 </DataTrigger>
                                 
-                                <!-- Disabled dates (other months) -->
-                                <Trigger Property="IsEnabled" Value="False">
+                                <!-- Other month days -->
+                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsOtherMonth), RelativeSource={RelativeSource Self}}" Value="True">
                                     <Setter TargetName="ContentText" Property="Foreground" Value="{StaticResource OtherMonthBrush}"/>
-                                </Trigger>
+                                </DataTrigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -133,10 +134,24 @@
         <!-- Top Menu Bar -->
         <mah:MetroHeader Grid.Row="0" Grid.ColumnSpan="2"
                         Margin="0,0,0,10">
-            <CheckBox x:Name="AutoStartCheckBox"
-                     Content="Start with Windows"
-                     Style="{StaticResource MahApps.Styles.CheckBox}"
-                     Margin="10,0"/>
+            <StackPanel Orientation="Horizontal">
+                <CheckBox x:Name="AutoStartCheckBox"
+                         Content="Start with Windows"
+                         Style="{StaticResource MahApps.Styles.CheckBox}"
+                         Margin="10,0"/>
+                <CheckBox x:Name="ShowHolidaysCheckBox"
+                         Content="Show Holidays"
+                         Style="{StaticResource MahApps.Styles.CheckBox}"
+                         Margin="10,0"
+                         IsChecked="True"
+                         Click="ShowHolidays_Click"/>
+                <Button x:Name="RefreshButton" 
+                        Content="Refresh" 
+                        Style="{StaticResource MahApps.Styles.Button.Square}" 
+                        Margin="20,0,0,0"
+                        Width="80"
+                        ToolTip="Refresh calendar data"/>
+            </StackPanel>
         </mah:MetroHeader>
 
         <!-- Left Column -->
@@ -178,7 +193,14 @@
                         <GridViewColumn Header="Event" Width="240">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Title}"/>
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0}{1}">
+                                                <Binding Path="IsTask" Converter="{StaticResource TaskPrefixConverter}" />
+                                                <Binding Path="Title" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

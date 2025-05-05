@@ -115,5 +115,24 @@ namespace GoogleCalendarNotifier
             _config.State.CustomNotifications.TryGetValue(eventId, out var notification);
             return notification;
         }
+
+        public bool GetShowHolidays()
+        {
+            return _config?.Settings?.ShowHolidays ?? true;
+        }
+
+        public void SaveSetting(string settingName, object value)
+        {
+            switch (settingName)
+            {
+                case "ShowHolidays" when value is bool showHolidays:
+                    _config.Settings.ShowHolidays = showHolidays;
+                    SaveConfig();
+                    break;
+                default:
+                    Debug.WriteLine($"Unknown setting: {settingName}");
+                    break;
+            }
+        }
     }
 }

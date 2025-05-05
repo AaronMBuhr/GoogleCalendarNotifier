@@ -22,6 +22,7 @@ namespace GoogleCalendarNotifier
 
         public TimeSpan LookAheadTime { get; set; } = TimeSpan.FromDays(7);
         public int CheckIntervalMinutes { get; set; } = 5;
+        public bool ShowHolidays { get; set; } = true;
     }
 
     public class StateData

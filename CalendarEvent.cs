@@ -12,6 +12,10 @@ namespace GoogleCalendarNotifier
         public DateTime EndTime { get; set; }
         public bool IsAllDay { get; set; }
         public TimeSpan? ReminderTime { get; set; }
+        public string CalendarId { get; set; } // ID of the source calendar
+        public string CalendarName { get; set; } // Name of the source calendar
+        public bool IsHoliday { get; set; } // Whether this is from a holiday calendar
+        public bool IsTask { get; set; } // Whether this is a task instead of an event
         
         private bool _isHighlighted;
         public bool IsHighlighted 

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Controls;
+using System.Diagnostics;
 
 namespace GoogleCalendarNotifier
 {
@@ -51,7 +52,10 @@ namespace GoogleCalendarNotifier
             if (selectedItem == null) return;
 
             TimeSpan? snoozeTime = null;
-            switch (selectedItem.Content.ToString())
+            string option = selectedItem.Content.ToString();
+            Debug.WriteLine($"Selected snooze option: {option}");
+
+            switch (option)
             {
                 case "5 minutes":
                     snoozeTime = TimeSpan.FromMinutes(5);
@@ -68,11 +72,17 @@ namespace GoogleCalendarNotifier
                 case "1 day":
                     snoozeTime = TimeSpan.FromDays(1);
                     break;
+                case "Never":
+                    snoozeTime = TimeSpan.MaxValue;
+                    Debug.WriteLine("Setting snooze to Never (MaxValue)");
+                    break;
                 case "Event Time":
                     snoozeTime = TimeSpan.Zero;
+                    Debug.WriteLine("Setting snooze to Event Time (Zero)");
                     break;
             }
 
+            Debug.WriteLine($"Invoking OnSnooze with value: {snoozeTime}");
             OnSnooze?.Invoke(snoozeTime);
             Close();
         }

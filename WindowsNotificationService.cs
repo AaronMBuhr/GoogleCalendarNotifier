@@ -27,9 +27,9 @@ namespace GoogleCalendarNotifier
             _eventTrackingService = eventTrackingService;
         }
 
-        public void ShowNotification(string title, string message, NotificationType type)
+        public void ShowNotification(string title, string message, NotificationType type, string eventId = null)
         {
-            Debug.WriteLine($"Showing notification - Title: {title}, Type: {type}");
+            Debug.WriteLine($"Showing notification - Title: {title}, Type: {type}, EventId: {eventId}");
             
             _dispatcher.Invoke(() =>
             {
@@ -37,7 +37,7 @@ namespace GoogleCalendarNotifier
                 
                 popup.OnSnooze += (snoozeTime) =>
                 {
-                    Debug.WriteLine($"Snooze requested for event '{title}' with duration: {snoozeTime}");
+                    Debug.WriteLine($"Snooze requested for event '{eventId}' with duration: {snoozeTime}");
                     
                     if (_activePopups.TryGetValue(popup, out var popupTimer))
                     {
@@ -46,9 +46,8 @@ namespace GoogleCalendarNotifier
                         _activePopups.Remove(popup);
                     }
 
-                    if (snoozeTime.HasValue)
+                    if (snoozeTime.HasValue && !string.IsNullOrEmpty(eventId))
                     {
-                        var eventId = title; // Using title as ID for now
                         DateTime snoozeUntil;
                         
                         if (snoozeTime.Value == TimeSpan.MaxValue)
@@ -93,7 +92,7 @@ namespace GoogleCalendarNotifier
                                 timer.Stop();
                                 _snoozeDispatchTimers.Remove(eventId);
                                 _snoozeTimers.Remove(eventId);
-                                ShowNotification(title, message, type);
+                                ShowNotification(title, message, type, eventId);
                             };
                             
                             _snoozeDispatchTimers[eventId] = timer;
@@ -165,6 +164,11 @@ namespace GoogleCalendarNotifier
             _snoozeDispatchTimers.Clear();
             
             _trayIcon.Dispose();
+        }
+
+        public void ShowNotification(string title, string message, NotificationType type)
+        {
+            ShowNotification(title, message, type, null);
         }
     }
 }

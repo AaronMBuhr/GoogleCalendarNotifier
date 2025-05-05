@@ -28,6 +28,7 @@
                     <ComboBoxItem Content="30 minutes"/>
                     <ComboBoxItem Content="60 minutes"/>
                     <ComboBoxItem Content="1 day"/>
+                    <ComboBoxItem Content="Never"/>
                     <ComboBoxItem Content="Event Time"/>
                 </ComboBox>
                 <Button x:Name="SnoozeButton" Content="Snooze" Width="80" Margin="0,0,10,0" Click="SnoozeButton_Click"/>

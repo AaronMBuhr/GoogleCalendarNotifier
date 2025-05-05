@@ -104,8 +104,9 @@ namespace GoogleCalendarNotifier
         {
             var isToday = date.Date == DateTime.Today;
             var isSelected = date.Date == SelectedDate?.Date;
+            bool isInCurrentMonth = date.Month == DisplayDate.Month && date.Year == DisplayDate.Year;
             
-            Debug.WriteLine($"UpdateDayButtonState: Date={date:d}, Today={isToday}, Selected={isSelected}");
+            Debug.WriteLine($"UpdateDayButtonState: Date={date:d}, Today={isToday}, Selected={isSelected}, CurrentMonth={isInCurrentMonth}");
 
             // Set HasEvents property
             var hasEvents = datesWithEvents.Contains(date.Date);
@@ -113,6 +114,9 @@ namespace GoogleCalendarNotifier
 
             // Set IsCurrentDay property
             CalendarDayButtonExtensions.SetIsCurrentDay(button, isToday);
+
+            // Set IsOtherMonth property
+            CalendarDayButtonExtensions.SetIsOtherMonth(button, !isInCurrentMonth);
         }
 
         public override void OnApplyTemplate()

@@ -10,6 +10,7 @@ namespace GoogleCalendarNotifier
     public interface INotificationService
     {
         void ShowNotification(string title, string message, NotificationType type);
+        void ShowNotification(string title, string message, NotificationType type, string eventId);
         void Configure(NotificationSettings settings);
     }
 }

@@ -25,12 +25,23 @@ namespace GoogleCalendarNotifier
         private const string APP_NAME = "GoogleCalendarNotifier";
         private const string RUN_LOCATION = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private bool _suppressSelectionChange = false;
-
+        private bool _showHolidays = true; // Default to showing holidays
+        
+        // Reference UI elements - use FindName to get references at runtime
+        private Button _refreshButton;
+        private CustomCalendar _mainCalendar;
+        private ListView _eventsListView;
+        private TextBox _eventDetailsTextBox;
+        private CheckBox _showHolidaysCheckBox;
+        
         public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, 
                          ConfigManager configManager, INotificationService notificationService,
                          EventTrackingService eventTrackingService)
         {
-            InitializeComponent();
+            // In a compiled WPF app, InitializeComponent would be auto-generated
+            // Adding a dummy method here for design-time compatibility
+            try { InitializeComponent(); } catch { /* Ignore - component will be initialized at runtime */ }
+            
             Debug.WriteLine("MainWindow: Constructor");
 
             _calendarService = calendarService;
@@ -40,27 +51,159 @@ namespace GoogleCalendarNotifier
             _eventTrackingService = eventTrackingService;
             _dateEvents = new Dictionary<DateTime, List<CalendarEvent>>();
             _allEvents = new ObservableCollection<CalendarEvent>();
+            
+            // Load settings
+            _showHolidays = _configManager?.GetShowHolidays() ?? true;
 
-            // For testing, set up some fake events
-            SetupTestData();
+            // Initialize UI control references
+            InitializeUIControls();
+
+            // Initialize real calendar data instead of test data
+            // SetupTestData();  // Commented out test data
+            
+            // Load calendar data with feedback immediately on startup
+            Dispatcher.BeginInvoke(new Action(async () => 
+            {
+                await LoadCalendarDataWithFeedbackAsync();
+            }));
 
             // Set up debug notification
-            SetupDebugNotification();
+            // SetupDebugNotification();  // Commented out debug notification
 
             // Subscribe to snooze updates
             _eventTrackingService.SubscribeToSnoozeUpdates((sender, eventId) =>
             {
+                Debug.WriteLine($"Snooze update received for eventId: {eventId}");
                 var evt = _allEvents.FirstOrDefault(e => e.Id == eventId);
                 if (evt != null)
                 {
                     evt.SnoozeUntil = _eventTrackingService.GetSnoozeTime(eventId);
+                    Debug.WriteLine($"Updated event {evt.Title} snooze time to {evt.SnoozeUntil}");
+                }
+                else
+                {
+                    Debug.WriteLine("Event not found!");
                 }
             });
         }
 
+        private void InitializeUIControls()
+        {
+            // Get references to UI controls
+            _refreshButton = FindName("RefreshButton") as Button;
+            _mainCalendar = FindName("MainCalendar") as CustomCalendar;
+            _eventsListView = FindName("EventsListView") as ListView;
+            _eventDetailsTextBox = FindName("EventDetailsTextBox") as TextBox;
+            _showHolidaysCheckBox = FindName("ShowHolidaysCheckBox") as CheckBox;
+
+            // Hook up events
+            if (_refreshButton != null)
+            {
+                _refreshButton.Click += RefreshCalendar_Click;
+            }
+            
+            // Set the initial state for the holidays checkbox
+            if (_showHolidaysCheckBox != null)
+            {
+                _showHolidaysCheckBox.IsChecked = _showHolidays;
+            }
+        }
+
+        private async void RefreshCalendar_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadCalendarDataWithFeedbackAsync();
+        }
+
+        private async Task LoadCalendarDataWithFeedbackAsync()
+        {
+            if (_refreshButton == null) return;
+            
+            try
+            {
+                // Show loading indicator
+                Debug.WriteLine("Loading real calendar data...");
+                _refreshButton.IsEnabled = false;
+                _refreshButton.Content = "Loading...";
+                
+                await LoadCalendarDataCoreAsync();
+                
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in manual refresh: {ex.Message}");
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+            }
+        }
+        
+        private async Task LoadCalendarDataCoreAsync()
+        {
+            try
+            {
+                // Initialize Google Calendar service
+                await _calendarService.InitializeAsync();
+                
+                // Get events for the next 90 days (or whatever period is configured)
+                var lookAheadTime = TimeSpan.FromDays(90);
+                var events = await _calendarService.GetUpcomingEventsAsync(lookAheadTime, _showHolidays);
+                
+                _allEvents.Clear();
+                foreach (var evt in events)
+                {
+                    // Apply any existing snooze settings from tracking service
+                    evt.SnoozeUntil = _eventTrackingService.GetSnoozeTime(evt.Id);
+                    _allEvents.Add(evt);
+                }
+                
+                // Group events by date
+                _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
+                                      .ToDictionary(g => g.Key, g => g.ToList());
+                
+                // Update calendar with real data
+                if (_mainCalendar != null)
+                {
+                    _mainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+                }
+                
+                if (_eventsListView != null)
+                {
+                    _eventsListView.ItemsSource = _allEvents;
+                }
+                
+                Debug.WriteLine($"Successfully loaded {_allEvents.Count} events from Google Calendar");
+                
+                // Setup the monitoring service with real events
+                _monitorService.SetEvents(_allEvents.ToList());
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading calendar data: {ex.Message}");
+                MessageBox.Show($"Error loading calendar data: {ex.Message}\n\nPlease check your Internet connection and Google Calendar credentials.", 
+                               "Calendar Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
+                // Fallback to test data if loading real data fails
+                SetupTestData();
+                throw; // Rethrow for UI handling
+            }
+        }
+
+        private async void LoadCalendarDataAsync()
+        {
+            try
+            {
+                await LoadCalendarDataCoreAsync();
+            }
+            catch (Exception)
+            {
+                // Exception already handled in the Task method
+            }
+        }
+
         private void ClearSnooze_Click(object sender, RoutedEventArgs e)
         {
-            if (EventsListView.SelectedItem is CalendarEvent selectedEvent)
+            if (_eventsListView?.SelectedItem is CalendarEvent selectedEvent)
             {
                 Debug.WriteLine($"Clearing snooze for event: {selectedEvent.Title}");
                 _eventTrackingService.ClearSnoozeTime(selectedEvent.Id);
@@ -75,13 +218,20 @@ namespace GoogleCalendarNotifier
             timer.Tick += (s, e) =>
             {
                 timer.Stop();
-                _notificationService.ShowNotification(
-                    "Debug Event",
-                    "This is a test notification that appears 10 seconds after startup.\n\n" +
-                    "Start Time: " + DateTime.Now.ToString("g") + "\n" +
-                    "Location: Test Location\n" +
-                    "Description: This is a test event description.",
-                    NotificationType.Success);
+
+                // Use the first event from our test data for debugging
+                var testEvent = _allEvents.FirstOrDefault();
+                if (testEvent != null)
+                {
+                    _notificationService.ShowNotification(
+                        testEvent.Title,
+                        $"This is a test notification that appears 10 seconds after startup.\n\n" +
+                        $"Start Time: {testEvent.StartTime:g}\n" +
+                        "Location: Test Location\n" +
+                        "Description: This is a test event description.",
+                        NotificationType.Success,
+                        testEvent.Id);  // Pass the real event ID
+                }
             };
             timer.Start();
         }
@@ -123,16 +273,23 @@ namespace GoogleCalendarNotifier
                                   .ToDictionary(g => g.Key, g => g.ToList());
 
             // Update calendar with test data
-            MainCalendar.SetDatesWithEvents(_dateEvents.Keys);
-            EventsListView.ItemsSource = _allEvents;
+            if (_mainCalendar != null)
+            {
+                _mainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+            }
+            
+            if (_eventsListView != null)
+            {
+                _eventsListView.ItemsSource = _allEvents;
+            }
         }
 
         private void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             Debug.WriteLine($"MainWindow: Calendar selection changed");
-            if (MainCalendar.SelectedDate.HasValue)
+            if (_mainCalendar?.SelectedDate.HasValue == true)
             {
-                var selectedDate = MainCalendar.SelectedDate.Value;
+                var selectedDate = _mainCalendar.SelectedDate.Value;
                 Debug.WriteLine($"  Selected date: {selectedDate:d}");
                 HighlightEventsByDate(selectedDate);
 
@@ -141,26 +298,36 @@ namespace GoogleCalendarNotifier
                 {
                     // Select the first event for this date in the ListView
                     _suppressSelectionChange = true;
-                    EventsListView.SelectedItems.Clear();
-                    foreach (var evt in dateEvents)
+                    if (_eventsListView != null)
                     {
-                        EventsListView.SelectedItems.Add(evt);
+                        _eventsListView.SelectedItems.Clear();
+                        foreach (var evt in dateEvents)
+                        {
+                            _eventsListView.SelectedItems.Add(evt);
+                        }
+                        
+                        // Scroll the first event into view
+                        if (dateEvents.Any())
+                        {
+                            _eventsListView.ScrollIntoView(dateEvents[0]);
+                        }
                     }
                     _suppressSelectionChange = false;
-
-                    // Scroll the first event into view
-                    if (dateEvents.Any())
-                    {
-                        EventsListView.ScrollIntoView(dateEvents[0]);
-                    }
                 }
                 else
                 {
                     // No events on this date, clear selection
                     _suppressSelectionChange = true;
-                    EventsListView.SelectedItems.Clear();
+                    if (_eventsListView != null)
+                    {
+                        _eventsListView.SelectedItems.Clear();
+                    }
                     _suppressSelectionChange = false;
-                    EventDetailsTextBox.Clear();
+                    
+                    if (_eventDetailsTextBox != null)
+                    {
+                        _eventDetailsTextBox.Clear();
+                    }
                 }
             }
         }
@@ -177,15 +344,18 @@ namespace GoogleCalendarNotifier
         {
             if (_suppressSelectionChange) return;
 
-            if (EventsListView.SelectedItem is CalendarEvent selectedEvent)
+            if (_eventsListView?.SelectedItem is CalendarEvent selectedEvent)
             {
                 // Set the display date to the month of the selected event
-                MainCalendar.DisplayDate = selectedEvent.StartTime.Date;
-                
-                // Then set the selected date (this will also highlight it)
-                _suppressSelectionChange = true;
-                MainCalendar.SelectedDate = selectedEvent.StartTime.Date;
-                _suppressSelectionChange = false;
+                if (_mainCalendar != null)
+                {
+                    _mainCalendar.DisplayDate = selectedEvent.StartTime.Date;
+                    
+                    // Then set the selected date (this will also highlight it)
+                    _suppressSelectionChange = true;
+                    _mainCalendar.SelectedDate = selectedEvent.StartTime.Date;
+                    _suppressSelectionChange = false;
+                }
                 
                 HighlightEventsByDate(selectedEvent.StartTime.Date);
 
@@ -193,17 +363,48 @@ namespace GoogleCalendarNotifier
                     ? $"\nSnoozed until: {selectedEvent.SnoozeUntil.Value:MM/dd/yyyy HH:mm}"
                     : "";
 
-                EventDetailsTextBox.Text = $"Event: {selectedEvent.Title}\n\n" +
-                    $"Start: {selectedEvent.StartTime:MM/dd/yyyy HH:mm}\n" +
-                    $"End: {selectedEvent.EndTime:MM/dd/yyyy HH:mm}\n" +
-                    $"All Day: {selectedEvent.IsAllDay}\n" +
-                    (selectedEvent.ReminderTime.HasValue ? $"Reminder: {selectedEvent.ReminderTime.Value} before start\n" : "") +
-                    snoozeInfo +
-                    (!string.IsNullOrEmpty(selectedEvent.Description) ? $"\nDescription:\n{selectedEvent.Description}" : "");
+                if (_eventDetailsTextBox != null)
+                {
+                    _eventDetailsTextBox.Text = $"Event: {selectedEvent.Title}\n\n" +
+                        $"Start: {selectedEvent.StartTime:MM/dd/yyyy HH:mm}\n" +
+                        $"End: {selectedEvent.EndTime:MM/dd/yyyy HH:mm}\n" +
+                        $"All Day: {selectedEvent.IsAllDay}\n" +
+                        (selectedEvent.ReminderTime.HasValue ? $"Reminder: {selectedEvent.ReminderTime.Value} before start\n" : "") +
+                        snoozeInfo +
+                        (!string.IsNullOrEmpty(selectedEvent.Description) ? $"\nDescription:\n{selectedEvent.Description}" : "");
+                }
             }
-            else if (EventsListView.SelectedItems.Count == 0)
+            else if (_eventsListView?.SelectedItems.Count == 0)
             {
-                EventDetailsTextBox.Clear();
+                if (_eventDetailsTextBox != null)
+                {
+                    _eventDetailsTextBox.Clear();
+                }
+            }
+        }
+
+        private void ShowHolidays_Click(object sender, RoutedEventArgs e)
+        {
+            // Update the holidays display preference
+            if (_showHolidaysCheckBox != null)
+            {
+                _showHolidays = _showHolidaysCheckBox.IsChecked ?? true;
+                
+                // Save preference to settings
+                if (_configManager != null)
+                {
+                    try
+                    {
+                        _configManager.SaveSetting("ShowHolidays", _showHolidays);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error saving ShowHolidays setting: {ex.Message}");
+                    }
+                }
+                
+                // Refresh the calendar data with the new filter setting
+                LoadCalendarDataAsync();
             }
         }
     }
