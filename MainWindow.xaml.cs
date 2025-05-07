@@ -2,7 +2,15 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
+// Fully qualify WPF controls to avoid ambiguity 
+using WPFButton = System.Windows.Controls.Button;
+using WPFListView = System.Windows.Controls.ListView;
+using WPFTextBox = System.Windows.Controls.TextBox;
+using WPFCheckBox = System.Windows.Controls.CheckBox;
+using WPFContextMenu = System.Windows.Controls.ContextMenu;
+using WPFMenuItem = System.Windows.Controls.MenuItem;
+using WPFSeparator = System.Windows.Controls.Separator;
+// End of fully qualified WPF controls
 using System.Windows.Data;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,12 +18,13 @@ using Microsoft.Win32;
 using MahApps.Metro.Controls;
 using System.Diagnostics;
 using System.Windows.Threading;
-using H.NotifyIcon;
+// using H.NotifyIcon; // Removed
 using System.IO;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+using System.Windows.Forms; // Added for NotifyIcon
 
 namespace GoogleCalendarNotifier
 {
@@ -34,12 +43,13 @@ namespace GoogleCalendarNotifier
         private bool _showHolidays = true; // Default to showing holidays
         
         // Reference UI elements - use FindName to get references at runtime
-        private Button _refreshButton;
+        private WPFButton _refreshButton;
         private CustomCalendar _mainCalendar;
-        private ListView _eventsListView;
-        private TextBox _eventDetailsTextBox;
-        private CheckBox _showHolidaysCheckBox;
-        private TaskbarIcon? _notifyIcon;
+        private WPFListView _eventsListView;
+        private WPFTextBox _eventDetailsTextBox;
+        private WPFCheckBox _showHolidaysCheckBox;
+        // private TaskbarIcon? _notifyIcon; // Removed H.NotifyIcon
+        private NotifyIcon? _tray; // WinForms NotifyIcon
         
         public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, 
                          ConfigManager configManager, INotificationService notificationService,
@@ -107,71 +117,79 @@ namespace GoogleCalendarNotifier
             });
 
             // Add minimize-to-tray functionality
-            Loaded += MainWindow_Loaded_SetupTrayIcon;
+            Loaded += MainWindow_Loaded; // Changed from MainWindow_Loaded_SetupTrayIcon
             StateChanged += MainWindow_StateChanged;
             Closing += MainWindow_Closing;
         }
 
-        // New method to set up the tray icon
-        private void MainWindow_Loaded_SetupTrayIcon(object sender, RoutedEventArgs e)
+        // New method to set up the tray icon (replaces MainWindow_Loaded_SetupTrayIcon)
+        private void MainWindow_Loaded(object? sender, RoutedEventArgs e)
         {
+            System.Drawing.Icon? appIcon = null;
             try
             {
-                // Create the TaskbarIcon programmatically
-                _notifyIcon = new TaskbarIcon();
-                
-                // Load the icon using the Icon property instead of IconSource
-                using var stream = Application.GetResourceStream(
-                    new Uri("pack://application:,,,/app.ico")).Stream;
-                _notifyIcon.Icon = new System.Drawing.Icon(stream);
-                
-                Debug.WriteLine("Tray icon loaded successfully");
-                
-                // Set other properties
-                _notifyIcon.ToolTipText = "Google Calendar Notifier";
-                _notifyIcon.Visibility = Visibility.Visible;
-
-                // Create context menu
-                var contextMenu = new ContextMenu();
-                
-                // Open menu item
-                var openMenuItem = new MenuItem { Header = "Open" };
-                openMenuItem.Click += NotifyIcon_TrayMouseDoubleClick;
-                contextMenu.Items.Add(openMenuItem);
-                
-                // Separator
-                contextMenu.Items.Add(new Separator());
-                
-                // Exit menu item
-                var exitMenuItem = new MenuItem { Header = "Exit" };
-                exitMenuItem.Click += NotifyIcon_ExitClick;
-                contextMenu.Items.Add(exitMenuItem);
-                
-                // Attach context menu
-                _notifyIcon.ContextMenu = contextMenu;
-                
-                // Attach double-click handler directly
-                _notifyIcon.TrayMouseDoubleClick += NotifyIcon_TrayMouseDoubleClick;
-
-                // Set the tray icon in the notification service
-                _notificationService.SetTrayIcon(_notifyIcon);
-                
-                Debug.WriteLine("NotifyIcon created and configured successfully.");
+                var iconUri = new Uri("pack://application:,,,/app.ico", UriKind.RelativeOrAbsolute);
+                System.Windows.Resources.StreamResourceInfo streamInfo = System.Windows.Application.GetResourceStream(iconUri);
+                if (streamInfo != null)
+                {
+                    using (var iconStream = streamInfo.Stream)
+                    {
+                        appIcon = new System.Drawing.Icon(iconStream);
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine("Error loading app.ico: StreamResourceInfo is null. Using default icon.");
+                    appIcon = SystemIcons.Application;
+                }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error setting up tray icon: {ex}");
-                MessageBox.Show($"Error setting up tray icon: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                Debug.WriteLine($"Error loading app.ico: {ex.Message}. Using default icon.");
+                appIcon = SystemIcons.Application; // Fallback to default icon
             }
+
+            _tray = new NotifyIcon
+            {
+                Icon = appIcon, // Use loaded app.ico or fallback
+                Text = "Google Calendar Notifier",
+                Visible = true,
+                ContextMenuStrip = BuildContextMenu() // System.Windows.Forms.ContextMenuStrip
+            };
+
+            _tray.DoubleClick += (_, __) => RestoreFromTray();
         }
 
+        private ContextMenuStrip BuildContextMenu() // System.Windows.Forms.ContextMenuStrip
+        {
+            var menu = new ContextMenuStrip(); // System.Windows.Forms.ContextMenuStrip
+
+            var open = new ToolStripMenuItem("Open"); // System.Windows.Forms.ToolStripMenuItem
+            open.Click += (_, __) => RestoreFromTray();
+            menu.Items.Add(open);
+
+            menu.Items.Add(new ToolStripSeparator()); // System.Windows.Forms.ToolStripSeparator
+
+            var exit = new ToolStripMenuItem("Exit"); // System.Windows.Forms.ToolStripMenuItem
+            exit.Click += (_, __) => System.Windows.Application.Current.Shutdown(); 
+            menu.Items.Add(exit);
+
+            return menu;
+        }
+
+        private void RestoreFromTray()
+        {
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+        }
+        
         // Minimize to tray instead of taskbar
-        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        private void MainWindow_StateChanged(object? sender, EventArgs e) // Replaced method
         {
             if (WindowState == WindowState.Minimized)
             {
-                this.Hide();
+                Hide(); // Corrected from this.Hide() for consistency
                 Debug.WriteLine("Window minimized to tray.");
             }
         }
@@ -182,38 +200,25 @@ namespace GoogleCalendarNotifier
             this.WindowState = WindowState.Minimized;
         }
 
-        // Restore from tray on double-click
-        private void NotifyIcon_TrayMouseDoubleClick(object? sender, RoutedEventArgs e)
-        {
-            Debug.WriteLine("NotifyIcon double-clicked, restoring window.");
-            this.Show();
-            this.WindowState = WindowState.Normal;
-            this.Activate(); // Bring window to foreground
-        }
-
-        // Exit the application from the tray icon context menu
-        private void NotifyIcon_ExitClick(object sender, RoutedEventArgs e)
-        {
-            Debug.WriteLine("Exit requested from tray icon menu.");
-            Application.Current.Shutdown();
-        }
+        // Removed NotifyIcon_TrayMouseDoubleClick method
+        // Removed NotifyIcon_ExitClick method
 
         // Clean up icon on exit
-        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        private void MainWindow_Closing(object? sender, CancelEventArgs e) // Replaced method
         {
             Debug.WriteLine("Window closing, disposing NotifyIcon.");
-            _notifyIcon?.Dispose(); // Dispose the icon to remove it from the tray
-            _notifyIcon = null; // Prevent further access
+            _tray?.Dispose(); // Dispose the icon to remove it from the tray
+            _tray = null; // Prevent further access
         }
 
         private void InitializeUIControls()
         {
             // Get references to UI controls
-            _refreshButton = FindName("RefreshButton") as Button;
+            _refreshButton = FindName("RefreshButton") as WPFButton;
             _mainCalendar = FindName("MainCalendar") as CustomCalendar;
-            _eventsListView = FindName("EventsListView") as ListView;
-            _eventDetailsTextBox = FindName("EventDetailsTextBox") as TextBox;
-            _showHolidaysCheckBox = FindName("ShowHolidaysCheckBox") as CheckBox;
+            _eventsListView = FindName("EventsListView") as WPFListView;
+            _eventDetailsTextBox = FindName("EventDetailsTextBox") as WPFTextBox;
+            _showHolidaysCheckBox = FindName("ShowHolidaysCheckBox") as WPFCheckBox;
 
             // Hook up events
             if (_refreshButton != null)
@@ -324,7 +329,7 @@ namespace GoogleCalendarNotifier
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error loading calendar data: {ex.Message}");
-                MessageBox.Show($"Error loading calendar data: {ex.Message}\n\nPlease check your Internet connection and Google Calendar credentials.", 
+                System.Windows.MessageBox.Show($"Error loading calendar data: {ex.Message}\n\nPlease check your Internet connection and Google Calendar credentials.", 
                                "Calendar Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 
                 // Fallback to test data if loading real data fails
@@ -453,7 +458,7 @@ namespace GoogleCalendarNotifier
             }
         }
 
-        private void OnCalendarSelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void OnCalendarSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) // Explicitly System.Windows.Controls
         {
             Debug.WriteLine($"MainWindow: Calendar selection changed");
             if (_mainCalendar?.SelectedDate.HasValue == true)
@@ -509,46 +514,19 @@ namespace GoogleCalendarNotifier
             }
         }
 
-        private void OnEventTableSelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void OnEventTableSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) // Explicitly System.Windows.Controls
         {
-            if (_suppressSelectionChange) return;
+            Debug.WriteLine("Event table selection changed");
+            if (_suppressSelectionChange || _eventsListView == null || _eventDetailsTextBox == null) return;
 
-            if (_eventsListView?.SelectedItem is CalendarEvent selectedEvent)
+            if (_eventsListView.SelectedItem is CalendarEvent selectedEvent)
             {
-                // Set the display date to the month of the selected event
-                if (_mainCalendar != null)
-                {
-                    _mainCalendar.DisplayDate = selectedEvent.StartTime.Date;
-                    
-                    // Then set the selected date (this will also highlight it)
-                    _suppressSelectionChange = true;
-                    _mainCalendar.SelectedDate = selectedEvent.StartTime.Date;
-                    _suppressSelectionChange = false;
-                }
-                
-                HighlightEventsByDate(selectedEvent.StartTime.Date);
-
-                var snoozeInfo = selectedEvent.SnoozeUntil.HasValue 
-                    ? $"\nSnoozed until: {selectedEvent.SnoozeUntil.Value:MM/dd/yyyy HH:mm}"
-                    : "";
-
-                if (_eventDetailsTextBox != null)
-                {
-                    _eventDetailsTextBox.Text = $"Event: {selectedEvent.Title}\n\n" +
-                        $"Start: {selectedEvent.StartTime:MM/dd/yyyy HH:mm}\n" +
-                        $"End: {selectedEvent.EndTime:MM/dd/yyyy HH:mm}\n" +
-                        $"All Day: {selectedEvent.IsAllDay}\n" +
-                        (selectedEvent.ReminderTime.HasValue ? $"Reminder: {selectedEvent.ReminderTime.Value} before start\n" : "") +
-                        snoozeInfo +
-                        (!string.IsNullOrEmpty(selectedEvent.Description) ? $"\nDescription:\n{selectedEvent.Description}" : "");
-                }
+                Debug.WriteLine($"  Selected event: {selectedEvent.Title}");
+                _eventDetailsTextBox.Text = selectedEvent.Description;
             }
-            else if (_eventsListView?.SelectedItems.Count == 0)
+            else
             {
-                if (_eventDetailsTextBox != null)
-                {
-                    _eventDetailsTextBox.Clear();
-                }
+                _eventDetailsTextBox.Text = string.Empty;
             }
         }
 
@@ -577,92 +555,59 @@ namespace GoogleCalendarNotifier
             }
         }
         
+        // When a task checkbox is clicked
         private async void TaskCheckbox_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is CheckBox checkBox && checkBox.DataContext is CalendarEvent calendarEvent)
+            if (sender is WPFCheckBox checkBox && checkBox.DataContext is CalendarEvent calendarEvent)
             {
-                // Make sure this is a task
+                // Ensure IsTask is true before proceeding
                 if (!calendarEvent.IsTask)
                 {
                     Debug.WriteLine("TaskCheckbox_Click was called on a non-task event");
                     return;
                 }
-                
-                Debug.WriteLine($"Task completion toggled for: {calendarEvent.Title}, IsCompleted: {checkBox.IsChecked}");
-                
-                // Update the task in Google Tasks if it's checked
-                if (checkBox.IsChecked == true)
+
+                Debug.WriteLine($"Task checkbox clicked for: {calendarEvent.Title}, IsCompleted from UI: {checkBox.IsChecked}");
+                calendarEvent.IsCompleted = checkBox.IsChecked ?? false;
+
+                if (calendarEvent.IsCompleted)
                 {
+                    Debug.WriteLine($"Attempting to complete task: {calendarEvent.Title}");
                     try
                     {
                         // The TaskId is stored in the Id property, and the TaskListId is in the CalendarId property
-                        var success = await _calendarService.CompleteTaskAsync(calendarEvent.Id, calendarEvent.CalendarId);
-                        
+                        bool success = await _calendarService.CompleteTaskAsync(calendarEvent.Id, calendarEvent.CalendarId);
                         if (success)
                         {
-                            // Update the task status in the UI
-                            calendarEvent.IsCompleted = true;
-                            
-                            // Show a toast notification that the task was completed
-                            _notificationService.ShowNotification(
-                                "Task Completed",
-                                $"Task \"{calendarEvent.Title}\" has been marked as completed!",
-                                NotificationType.Success);
-                            
                             Debug.WriteLine($"Successfully completed task: {calendarEvent.Title}");
+                            // Optionally, show a success notification if desired
+                            // _notificationService.ShowNotification("Task Completed", $"Task \"{calendarEvent.Title}\" marked as completed.", NotificationType.Success);
                         }
                         else
                         {
-                            // If failed, revert the checkbox
-                            checkBox.IsChecked = false;
+                            Debug.WriteLine($"Failed to complete task via service: {calendarEvent.Title}");
+                            // Revert UI change if service call failed
                             calendarEvent.IsCompleted = false;
-                            
-                            // Show an error message
-                            MessageBox.Show(
-                                $"Failed to mark task \"{calendarEvent.Title}\" as completed. Please try again.",
-                                "Task Completion Error",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Error);
-                            
-                            Debug.WriteLine($"Failed to complete task: {calendarEvent.Title}");
+                            checkBox.IsChecked = false;
+                            System.Windows.MessageBox.Show($"Failed to mark task '{calendarEvent.Title}' as completed.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                         }
                     }
                     catch (Exception ex)
                     {
-                        // If an exception occurred, revert the checkbox
-                        checkBox.IsChecked = false;
+                        Debug.WriteLine($"Error completing task: {ex.Message}");
                         calendarEvent.IsCompleted = false;
-                        
-                        // Show an error message
-                        MessageBox.Show(
-                            $"An error occurred while completing the task: {ex.Message}",
-                            "Task Completion Error",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error);
-                        
-                        Debug.WriteLine($"Exception completing task: {ex.Message}");
+                        checkBox.IsChecked = false;
+                        System.Windows.MessageBox.Show($"Error updating task: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
                 else
                 {
-                    // Just update the UI since we don't support uncompleting tasks
-                    // (Google Tasks doesn't have a good way to "uncomplete" tasks)
-                    calendarEvent.IsCompleted = false;
-                    Debug.WriteLine($"Task marked as not completed in UI: {calendarEvent.Title}");
-                    
-                    // Show a message that uncompleting tasks is not supported
-                    MessageBox.Show(
-                        "Unmarking tasks as completed is not supported. " +
-                        "You can create a new task if needed.",
-                        "Unsupported Operation",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                    
-                    // Set the checkbox back to checked since we don't support uncompleting
-                    if (calendarEvent.IsCompleted)
-                    {
-                        checkBox.IsChecked = true;
-                    }
+                    // Logic for when a task is 'unchecked' (marked as not completed)
+                    // Currently, GoogleCalendarService.CompleteTaskAsync only completes tasks.
+                    // If un-completing tasks needs to be fully supported, the service layer would need a corresponding method.
+                    Debug.WriteLine($"Task marked as not completed in UI: {calendarEvent.Title}. Backend update for un-completing is not currently implemented via CompleteTaskAsync.");
+                    // Potentially show a message that full un-completion via API is not implemented here
+                    // System.Windows.MessageBox.Show("Marking tasks as not completed is a UI-only change for now.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
         }

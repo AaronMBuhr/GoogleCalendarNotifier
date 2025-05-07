@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Windows.Threading;
-using H.NotifyIcon;
+// using H.NotifyIcon; // Removed
 using System.Diagnostics;
+using System.Windows.Forms; // Added for NotifyIcon, though not directly used in this file after changes
 
 namespace GoogleCalendarNotifier
 {
     public class WindowsNotificationService : INotificationService
     {
-        private TaskbarIcon? _trayIcon;
+        // private TaskbarIcon? _trayIcon; // Removed H.NotifyIcon.TaskbarIcon field
+        private NotifyIcon? _winFormsTrayIcon; // Kept for potential future use, though SetTrayIcon is commented out
         private readonly NotificationSettings _settings;
         private readonly Dictionary<NotificationPopup, DispatcherTimer> _activePopups;
         private readonly Dictionary<string, DateTime> _snoozeTimers;  // EventId -> SnoozeUntil
@@ -26,7 +28,9 @@ namespace GoogleCalendarNotifier
             _eventTrackingService = eventTrackingService;
         }
 
-        public void SetTrayIcon(TaskbarIcon icon) => _trayIcon = icon;
+        // public void SetTrayIcon(TaskbarIcon icon) => _trayIcon = icon; // Commented out
+        // New signature, also commented out as INotificationService.SetTrayIcon is commented out
+        // public void SetTrayIcon(NotifyIcon icon) => _winFormsTrayIcon = icon; 
 
         public void ShowNotification(string title, string message, NotificationType type, string eventId = null)
         {
@@ -131,9 +135,13 @@ namespace GoogleCalendarNotifier
                 autoCloseTimer.Start();
 
                 // Update tray icon tooltip if available
-                if (_trayIcon != null)
+                // The _trayIcon field (H.NotifyIcon) was removed. 
+                // If tooltip updates are needed for the WinForms NotifyIcon, 
+                // this service would need a reference to it, or MainWindow would handle it.
+                /* 
+                if (_winFormsTrayIcon != null) // Check the new WinForms icon field if it were being set
                 {
-                    _trayIcon.ToolTipText = type switch
+                    _winFormsTrayIcon.Text = type switch // NotifyIcon uses .Text for tooltip
                     {
                         NotificationType.Warning => "Warning: " + message,
                         NotificationType.Error => "Error: " + message,
@@ -141,6 +149,7 @@ namespace GoogleCalendarNotifier
                         _ => message
                     };
                 }
+                */
 
                 popup.ShowNotification(title, message);
                 Debug.WriteLine($"Notification window shown for event: {title}");
@@ -167,7 +176,8 @@ namespace GoogleCalendarNotifier
             }
             _snoozeDispatchTimers.Clear();
             
-            _trayIcon?.Dispose();
+            // _trayIcon?.Dispose(); // Dispose H.NotifyIcon
+            _winFormsTrayIcon?.Dispose(); // Dispose WinForms NotifyIcon if it were used
         }
 
         public void ShowNotification(string title, string message, NotificationType type)

@@ -1,11 +1,11 @@
 using System;
 using System.Windows;
 using System.Diagnostics;
-using H.NotifyIcon;
+// using H.NotifyIcon; // Removed
 
 namespace GoogleCalendarNotifier
 {
-    public partial class App : Application
+    public partial class App : System.Windows.Application // Fully qualify to resolve ambiguity
     {
         private IGoogleCalendarService _calendarService;
         private CalendarMonitorService _monitorService;
@@ -37,9 +37,9 @@ namespace GoogleCalendarNotifier
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error during startup: {ex}");
-                MessageBox.Show($"Error during startup: {ex.Message}", "Error",
+                System.Windows.MessageBox.Show($"Error during startup: {ex.Message}", "Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
-                Shutdown();
+                Current.Shutdown(); // Use Current to access Shutdown
             }
         }
 

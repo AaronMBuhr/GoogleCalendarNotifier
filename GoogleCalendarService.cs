@@ -71,7 +71,7 @@ To use this application, you need OAuth 2.0 credentials:
 {AppDataPath}
 """;
 
-                    MessageBox.Show(
+                    System.Windows.MessageBox.Show(
                         detailedInstructions,
                         "Missing Credentials File",
                         MessageBoxButton.OK,
@@ -151,7 +151,7 @@ To use this application, you need OAuth 2.0 credentials:
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error in InitializeAsync: {ex}");
-                MessageBox.Show(
+                System.Windows.MessageBox.Show(
                     $"Failed to initialize Google Calendar service: {ex.Message}\n\n{ex.StackTrace}",
                     "Calendar Connection Error",
                     MessageBoxButton.OK,
@@ -539,7 +539,7 @@ To use this application, you need OAuth 2.0 credentials:
             {
                 Debug.WriteLine($"Error retrieving tasks: {ex.Message}");
                 Debug.WriteLine($"Task retrieval error details: {ex}");
-                MessageBox.Show(
+                System.Windows.MessageBox.Show(
                     $"Error retrieving tasks: {ex.Message}\n\nPlease check you have enabled the Tasks API in your Google Cloud project.",
                     "Tasks API Error",
                     MessageBoxButton.OK,
