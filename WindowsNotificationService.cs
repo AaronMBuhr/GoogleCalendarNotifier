@@ -8,7 +8,7 @@ namespace GoogleCalendarNotifier
 {
     public class WindowsNotificationService : INotificationService
     {
-        private readonly TaskbarIcon _trayIcon;
+        private TaskbarIcon? _trayIcon;
         private readonly NotificationSettings _settings;
         private readonly Dictionary<NotificationPopup, DispatcherTimer> _activePopups;
         private readonly Dictionary<string, DateTime> _snoozeTimers;  // EventId -> SnoozeUntil
@@ -18,7 +18,6 @@ namespace GoogleCalendarNotifier
 
         public WindowsNotificationService(EventTrackingService eventTrackingService)
         {
-            _trayIcon = new TaskbarIcon();
             _settings = new NotificationSettings();
             _activePopups = new Dictionary<NotificationPopup, DispatcherTimer>();
             _snoozeTimers = new Dictionary<string, DateTime>();
@@ -26,6 +25,8 @@ namespace GoogleCalendarNotifier
             _dispatcher = Dispatcher.CurrentDispatcher;
             _eventTrackingService = eventTrackingService;
         }
+
+        public void SetTrayIcon(TaskbarIcon icon) => _trayIcon = icon;
 
         public void ShowNotification(string title, string message, NotificationType type, string eventId = null)
         {
@@ -129,14 +130,17 @@ namespace GoogleCalendarNotifier
                 _activePopups.Add(popup, autoCloseTimer);
                 autoCloseTimer.Start();
 
-                // Update tray icon tooltip
-                _trayIcon.ToolTipText = type switch
+                // Update tray icon tooltip if available
+                if (_trayIcon != null)
                 {
-                    NotificationType.Warning => "Warning: " + message,
-                    NotificationType.Error => "Error: " + message,
-                    NotificationType.Success => "Success: " + message,
-                    _ => message
-                };
+                    _trayIcon.ToolTipText = type switch
+                    {
+                        NotificationType.Warning => "Warning: " + message,
+                        NotificationType.Error => "Error: " + message,
+                        NotificationType.Success => "Success: " + message,
+                        _ => message
+                    };
+                }
 
                 popup.ShowNotification(title, message);
                 Debug.WriteLine($"Notification window shown for event: {title}");
@@ -163,7 +167,7 @@ namespace GoogleCalendarNotifier
             }
             _snoozeDispatchTimers.Clear();
             
-            _trayIcon.Dispose();
+            _trayIcon?.Dispose();
         }
 
         public void ShowNotification(string title, string message, NotificationType type)

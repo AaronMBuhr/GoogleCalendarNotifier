@@ -10,6 +10,12 @@ using Microsoft.Win32;
 using MahApps.Metro.Controls;
 using System.Diagnostics;
 using System.Windows.Threading;
+using H.NotifyIcon;
+using System.IO;
+using System.ComponentModel;
+using System.Drawing;
+using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 
 namespace GoogleCalendarNotifier
 {
@@ -33,6 +39,7 @@ namespace GoogleCalendarNotifier
         private ListView _eventsListView;
         private TextBox _eventDetailsTextBox;
         private CheckBox _showHolidaysCheckBox;
+        private TaskbarIcon? _notifyIcon;
         
         public MainWindow(IGoogleCalendarService calendarService, CalendarMonitorService monitorService, 
                          ConfigManager configManager, INotificationService notificationService,
@@ -98,6 +105,105 @@ namespace GoogleCalendarNotifier
                     Debug.WriteLine("Event not found!");
                 }
             });
+
+            // Add minimize-to-tray functionality
+            Loaded += MainWindow_Loaded_SetupTrayIcon;
+            StateChanged += MainWindow_StateChanged;
+            Closing += MainWindow_Closing;
+        }
+
+        // New method to set up the tray icon
+        private void MainWindow_Loaded_SetupTrayIcon(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Create the TaskbarIcon programmatically
+                _notifyIcon = new TaskbarIcon();
+                
+                // Load the icon using the Icon property instead of IconSource
+                using var stream = Application.GetResourceStream(
+                    new Uri("pack://application:,,,/app.ico")).Stream;
+                _notifyIcon.Icon = new System.Drawing.Icon(stream);
+                
+                Debug.WriteLine("Tray icon loaded successfully");
+                
+                // Set other properties
+                _notifyIcon.ToolTipText = "Google Calendar Notifier";
+                _notifyIcon.Visibility = Visibility.Visible;
+
+                // Create context menu
+                var contextMenu = new ContextMenu();
+                
+                // Open menu item
+                var openMenuItem = new MenuItem { Header = "Open" };
+                openMenuItem.Click += NotifyIcon_TrayMouseDoubleClick;
+                contextMenu.Items.Add(openMenuItem);
+                
+                // Separator
+                contextMenu.Items.Add(new Separator());
+                
+                // Exit menu item
+                var exitMenuItem = new MenuItem { Header = "Exit" };
+                exitMenuItem.Click += NotifyIcon_ExitClick;
+                contextMenu.Items.Add(exitMenuItem);
+                
+                // Attach context menu
+                _notifyIcon.ContextMenu = contextMenu;
+                
+                // Attach double-click handler directly
+                _notifyIcon.TrayMouseDoubleClick += NotifyIcon_TrayMouseDoubleClick;
+
+                // Set the tray icon in the notification service
+                _notificationService.SetTrayIcon(_notifyIcon);
+                
+                Debug.WriteLine("NotifyIcon created and configured successfully.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error setting up tray icon: {ex}");
+                MessageBox.Show($"Error setting up tray icon: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Minimize to tray instead of taskbar
+        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        {
+            if (WindowState == WindowState.Minimized)
+            {
+                this.Hide();
+                Debug.WriteLine("Window minimized to tray.");
+            }
+        }
+
+        // Handler for the custom minimize button in the title bar
+        private void CustomMinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            this.WindowState = WindowState.Minimized;
+        }
+
+        // Restore from tray on double-click
+        private void NotifyIcon_TrayMouseDoubleClick(object? sender, RoutedEventArgs e)
+        {
+            Debug.WriteLine("NotifyIcon double-clicked, restoring window.");
+            this.Show();
+            this.WindowState = WindowState.Normal;
+            this.Activate(); // Bring window to foreground
+        }
+
+        // Exit the application from the tray icon context menu
+        private void NotifyIcon_ExitClick(object sender, RoutedEventArgs e)
+        {
+            Debug.WriteLine("Exit requested from tray icon menu.");
+            Application.Current.Shutdown();
+        }
+
+        // Clean up icon on exit
+        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            Debug.WriteLine("Window closing, disposing NotifyIcon.");
+            _notifyIcon?.Dispose(); // Dispose the icon to remove it from the tray
+            _notifyIcon = null; // Prevent further access
         }
 
         private void InitializeUIControls()
@@ -561,4 +667,4 @@ namespace GoogleCalendarNotifier
             }
         }
     }
-}
+} 

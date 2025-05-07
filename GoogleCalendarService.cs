@@ -28,31 +28,61 @@ namespace GoogleCalendarNotifier
             "https://www.googleapis.com/auth/tasks.readonly"
         };
         private readonly string _applicationName = "Google Calendar Notifier";
-        private readonly string _credentialsPath = "credentials.json";
-        private readonly string _tokenPath = "token.json";
+        
+        // Use LocalAppData for storing credentials and token
+        private static readonly string AppDataPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "GoogleCalendarNotifier");
+        private readonly string _credentialsPath = Path.Combine(AppDataPath, "credentials.json");
+        private readonly string _tokenPath = Path.Combine(AppDataPath, "token.json"); // Store token here as well
 
         public async System.Threading.Tasks.Task InitializeAsync()
         {
             Debug.WriteLine("Initializing Google Calendar Service");
             try
             {
-                // First check if credentials.json exists
+                // Ensure the AppData directory exists
+                if (!Directory.Exists(AppDataPath))
+                {
+                    Directory.CreateDirectory(AppDataPath);
+                    Debug.WriteLine($"Created directory: {AppDataPath}");
+                }
+                
+                // Check if credentials.json exists in the AppData path
                 if (!File.Exists(_credentialsPath))
                 {
-                    var errorMessage = $"credentials.json not found at {Path.GetFullPath(_credentialsPath)}";
+                    var errorMessage = $"credentials.json not found at {_credentialsPath}";
                     Debug.WriteLine(errorMessage);
+
+                    // Provide more detailed instructions
+                    var detailedInstructions = $"""
+{errorMessage}
+
+To use this application, you need OAuth 2.0 credentials:
+
+1. Go to Google Cloud Console (console.cloud.google.com).
+2. Select/create a project.
+3. Enable 'Google Calendar API' & 'Google Tasks API' (APIs & Services > Library).
+4. Configure 'OAuth consent screen' (add required scopes & test users).
+5. Create 'OAuth client ID' (Credentials > Create > OAuth client ID > Desktop app).
+6. Download the client secret JSON file.
+7. Rename the downloaded file to 'credentials.json'.
+8. Place 'credentials.json' in this directory:
+{AppDataPath}
+""";
+
                     MessageBox.Show(
-                        $"{errorMessage}\n\nPlease download credentials.json from your Google Cloud project and place it in the application directory.",
+                        detailedInstructions,
                         "Missing Credentials File",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                     throw new FileNotFoundException(errorMessage, _credentialsPath);
                 }
 
-                Debug.WriteLine($"Found credentials.json at {Path.GetFullPath(_credentialsPath)}");
+                Debug.WriteLine($"Found credentials.json at {_credentialsPath}");
                 
-                // Get the token directory path
-                var tokenDirectory = Path.GetFullPath(_tokenPath);
+                // Get the token directory path (now using the AppData path)
+                var tokenDirectory = Path.GetDirectoryName(_tokenPath); // Use directory for FileDataStore
                 Debug.WriteLine($"Token directory: {tokenDirectory}");
                 
                 // Only force token refresh if we need to upgrade scopes - uncomment this block when changing required scopes
@@ -73,7 +103,7 @@ namespace GoogleCalendarNotifier
                     _scopes,
                     "user",
                     CancellationToken.None,
-                    new FileDataStore(_tokenPath, true));
+                    new FileDataStore(tokenDirectory, true)); // Pass the directory path
 
                 Debug.WriteLine("Authorization completed successfully");
                 Debug.WriteLine($"Token acquired for account: {credential.UserId}");

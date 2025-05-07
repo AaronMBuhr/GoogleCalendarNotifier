@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GoogleCalendarNotifier"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         mc:Ignorable="d"
         Title="Calendar Notifications"
         Height="500"
@@ -12,12 +13,21 @@
         GlowBrush="{DynamicResource MahApps.Brushes.Accent}"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
+        ShowMinButton="True"
         BorderThickness="1"
         WindowTitleBrush="{DynamicResource MahApps.Brushes.Window.Background}"
         Background="{DynamicResource MahApps.Brushes.ThemeBackground}"
         SizeToContent="Height">
 
-    <Window.Resources>
+    <mah:MetroWindow.RightWindowCommands>
+        <mah:WindowCommands>
+            <Button x:Name="CustomMinimizeButton" Click="CustomMinimizeButton_Click" ToolTip="Minimize to Tray">
+                <iconPacks:PackIconMaterial Kind="WindowMinimize" />
+            </Button>
+        </mah:WindowCommands>
+    </mah:MetroWindow.RightWindowCommands>
+
+    <mah:MetroWindow.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
@@ -39,117 +49,119 @@
             
             <!-- Calendar Day Button Style -->
             <Style x:Key="CalendarDayButtonStyle" TargetType="CalendarDayButton">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                <Setter Property="MinWidth" Value="40"/>
-                <Setter Property="MinHeight" Value="40"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="CalendarDayButton">
-                            <Grid>
-                                <!-- Base background -->
-                                <Border x:Name="BackgroundBorder" 
-                                        Background="{TemplateBinding Background}"
-                                        BorderThickness="0"/>
-                                
-                                <!-- Selected day highlight -->
-                                <Border x:Name="SelectedBorder"
-                                        Background="Transparent"
-                                        BorderThickness="2"
-                                        Margin="1"
-                                        BorderBrush="Transparent"
-                                        CornerRadius="2"/>
-                                
-                                <!-- Current day highlight -->
-                                <Border x:Name="TodayBorder"
-                                        Background="Transparent"
-                                        BorderThickness="2"
-                                        Margin="1"
-                                        BorderBrush="Transparent"
-                                        CornerRadius="2"/>
-                                
-                                <!-- Events indicator -->
-                                <Border x:Name="EventsBorder"
-                                        Height="2"
-                                        Margin="4,0,4,2"
-                                        VerticalAlignment="Bottom"
-                                        Background="Transparent"/>
-                                
-                                <!-- Content -->
-                                <TextBlock x:Name="ContentText"
-                                         Text="{TemplateBinding Content}"
-                                         HorizontalAlignment="Center"
-                                         VerticalAlignment="Center"/>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <!-- Mouse over effect -->
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent4}"/>
-                                </Trigger>
-                                
-                                <!-- Selected day -->
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#3F5D89EF"/>
-                                </Trigger>
-                                
-                                <!-- Current day -->
-                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsCurrentDay), RelativeSource={RelativeSource Self}}" Value="True">
-                                    <Setter TargetName="TodayBorder" Property="BorderBrush" Value="{StaticResource CurrentDayBrush}"/>
-                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#6F1E7145"/>
-                                    <Setter TargetName="ContentText" Property="FontWeight" Value="Bold"/>
-                                </DataTrigger>
-                                
-                                <!-- Days with events -->
-                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource Self}}" Value="True">
-                                    <Setter TargetName="EventsBorder" Property="Background" Value="#1B9D44"/>
-                                </DataTrigger>
-                                
-                                <!-- Days with tasks - must come after the HasEvents trigger -->
-                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasTasks), RelativeSource={RelativeSource Self}}" Value="True">
-                                    <Setter TargetName="EventsBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                                </DataTrigger>
-                                
-                                <!-- Days with holidays - a dotted dark green line -->
-                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasHolidays), RelativeSource={RelativeSource Self}}" Value="True">
-                                    <Setter TargetName="EventsBorder" Property="Background">
-                                        <Setter.Value>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                <GradientStop Color="#0A6B25" Offset="0.0"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.1"/>
-                                                <GradientStop Color="Transparent" Offset="0.11"/>
-                                                <GradientStop Color="Transparent" Offset="0.2"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.21"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.3"/>
-                                                <GradientStop Color="Transparent" Offset="0.31"/>
-                                                <GradientStop Color="Transparent" Offset="0.4"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.41"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.5"/>
-                                                <GradientStop Color="Transparent" Offset="0.51"/>
-                                                <GradientStop Color="Transparent" Offset="0.6"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.61"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.7"/>
-                                                <GradientStop Color="Transparent" Offset="0.71"/>
-                                                <GradientStop Color="Transparent" Offset="0.8"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.81"/>
-                                                <GradientStop Color="#0A6B25" Offset="0.9"/>
-                                                <GradientStop Color="Transparent" Offset="0.91"/>
-                                                <GradientStop Color="Transparent" Offset="1.0"/>
-                                            </LinearGradientBrush>
-                                        </Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                                
-                                <!-- Other month days -->
-                                <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsOtherMonth), RelativeSource={RelativeSource Self}}" Value="True">
-                                    <Setter TargetName="ContentText" Property="Foreground" Value="{StaticResource OtherMonthBrush}"/>
-                                </DataTrigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
+                <Style.Setters>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    <Setter Property="MinWidth" Value="40"/>
+                    <Setter Property="MinHeight" Value="40"/>
+                    <Setter Property="FontSize" Value="14"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="CalendarDayButton">
+                                <Grid>
+                                    <!-- Base background -->
+                                    <Border x:Name="BackgroundBorder" 
+                                            Background="{TemplateBinding Background}"
+                                            BorderThickness="0"/>
+                                    
+                                    <!-- Selected day highlight -->
+                                    <Border x:Name="SelectedBorder"
+                                            Background="Transparent"
+                                            BorderThickness="2"
+                                            Margin="1"
+                                            BorderBrush="Transparent"
+                                            CornerRadius="2"/>
+                                    
+                                    <!-- Current day highlight -->
+                                    <Border x:Name="TodayBorder"
+                                            Background="Transparent"
+                                            BorderThickness="2"
+                                            Margin="1"
+                                            BorderBrush="Transparent"
+                                            CornerRadius="2"/>
+                                    
+                                    <!-- Events indicator -->
+                                    <Border x:Name="EventsBorder"
+                                            Height="2"
+                                            Margin="4,0,4,2"
+                                            VerticalAlignment="Bottom"
+                                            Background="Transparent"/>
+                                    
+                                    <!-- Content -->
+                                    <TextBlock x:Name="ContentText"
+                                             Text="{TemplateBinding Content}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"/>
+                                </Grid>
+                                <ControlTemplate.Triggers>
+                                    <!-- Mouse over effect -->
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="BackgroundBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent4}"/>
+                                    </Trigger>
+                                    
+                                    <!-- Selected day -->
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                                        <Setter TargetName="BackgroundBorder" Property="Background" Value="#3F5D89EF"/>
+                                    </Trigger>
+                                    
+                                    <!-- Current day -->
+                                    <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsCurrentDay), RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter TargetName="TodayBorder" Property="BorderBrush" Value="{StaticResource CurrentDayBrush}"/>
+                                        <Setter TargetName="BackgroundBorder" Property="Background" Value="#6F1E7145"/>
+                                        <Setter TargetName="ContentText" Property="FontWeight" Value="Bold"/>
+                                    </DataTrigger>
+                                    
+                                    <!-- Days with events -->
+                                    <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasEvents), RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter TargetName="EventsBorder" Property="Background" Value="#1B9D44"/>
+                                    </DataTrigger>
+                                    
+                                    <!-- Days with tasks - must come after the HasEvents trigger -->
+                                    <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasTasks), RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter TargetName="EventsBorder" Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                                    </DataTrigger>
+                                    
+                                    <!-- Days with holidays - a dotted dark green line -->
+                                    <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.HasHolidays), RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter TargetName="EventsBorder" Property="Background">
+                                            <Setter.Value>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <GradientStop Color="#0A6B25" Offset="0.0"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.1"/>
+                                                    <GradientStop Color="Transparent" Offset="0.11"/>
+                                                    <GradientStop Color="Transparent" Offset="0.2"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.21"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.3"/>
+                                                    <GradientStop Color="Transparent" Offset="0.31"/>
+                                                    <GradientStop Color="Transparent" Offset="0.4"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.41"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.5"/>
+                                                    <GradientStop Color="Transparent" Offset="0.51"/>
+                                                    <GradientStop Color="Transparent" Offset="0.6"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.61"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.7"/>
+                                                    <GradientStop Color="Transparent" Offset="0.71"/>
+                                                    <GradientStop Color="Transparent" Offset="0.8"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.81"/>
+                                                    <GradientStop Color="#0A6B25" Offset="0.9"/>
+                                                    <GradientStop Color="Transparent" Offset="0.91"/>
+                                                    <GradientStop Color="Transparent" Offset="1.0"/>
+                                                </LinearGradientBrush>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    
+                                    <!-- Other month days -->
+                                    <DataTrigger Binding="{Binding (local:CalendarDayButtonExtensions.IsOtherMonth), RelativeSource={RelativeSource Self}}" Value="True">
+                                        <Setter TargetName="ContentText" Property="Foreground" Value="{StaticResource OtherMonthBrush}"/>
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style.Setters>
             </Style>
 
             <!-- Style for CustomCalendar -->
@@ -157,7 +169,7 @@
                 <Setter Property="CalendarDayButtonStyle" Value="{StaticResource CalendarDayButtonStyle}"/>
             </Style>
         </ResourceDictionary>
-    </Window.Resources>
+    </mah:MetroWindow.Resources>
 
     <Grid Margin="10">
         <Grid.RowDefinitions>
