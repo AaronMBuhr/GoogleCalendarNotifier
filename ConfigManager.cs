@@ -129,10 +129,19 @@ namespace GoogleCalendarNotifier
                     _config.Settings.ShowHolidays = showHolidays;
                     SaveConfig();
                     break;
+                case "ExtentMonths" when value is int extentMonths:
+                    _config.Settings.ExtentMonths = extentMonths;
+                    SaveConfig();
+                    break;
                 default:
                     Debug.WriteLine($"Unknown setting: {settingName}");
                     break;
             }
+        }
+
+        public int GetExtentMonths()
+        {
+            return _config?.Settings?.ExtentMonths ?? 6;
         }
     }
 }

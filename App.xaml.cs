@@ -28,7 +28,7 @@ namespace GoogleCalendarNotifier
                 _notificationService = new WindowsNotificationService(_eventTrackingService);
                 
                 // Create monitor service after notification service is created
-                _monitorService = new CalendarMonitorService(_calendarService, _notificationService, _eventTrackingService);
+                _monitorService = new CalendarMonitorService(_calendarService, _notificationService, _eventTrackingService, _configManager);
                 
                 // Create and show main window
                 var mainWindow = new MainWindow(_calendarService, _monitorService, _configManager, _notificationService, _eventTrackingService);

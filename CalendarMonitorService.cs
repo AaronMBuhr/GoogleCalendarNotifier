@@ -13,6 +13,7 @@ namespace GoogleCalendarNotifier
         private readonly IGoogleCalendarService _calendarService;
         private readonly INotificationService _notificationService;
         private readonly EventTrackingService _eventTracker;
+        private readonly ConfigManager _configManager;
         private List<CalendarEvent> _events;
         private DispatcherTimer _monitorTimer;
         private DispatcherTimer _refreshTimer;
@@ -22,11 +23,13 @@ namespace GoogleCalendarNotifier
         public CalendarMonitorService(
             IGoogleCalendarService calendarService,
             INotificationService notificationService,
-            EventTrackingService eventTracker)
+            EventTrackingService eventTracker,
+            ConfigManager configManager)
         {
             _calendarService = calendarService;
             _notificationService = notificationService;
             _eventTracker = eventTracker;
+            _configManager = configManager;
             _events = new List<CalendarEvent>();
             
             // Set up timer for checking events
@@ -100,8 +103,16 @@ namespace GoogleCalendarNotifier
             Debug.WriteLine("CalendarMonitorService: Refreshing calendar data");
             try
             {
-                var lookAheadTime = TimeSpan.FromDays(90);
-                var events = await _calendarService.GetUpcomingEventsAsync(lookAheadTime);
+                // Get the ExtentMonths setting
+                int extentMonths = _configManager.GetExtentMonths();
+                
+                // Calculate date range: from start of current month to ExtentMonths months ahead
+                DateTime now = DateTime.Now;
+                DateTime startDate = new DateTime(now.Year, now.Month, 1); // Start of current month
+                DateTime endDate = startDate.AddMonths(extentMonths); // ExtentMonths from start of current month
+                
+                // Fetch events for the calculated date range
+                var events = await _calendarService.GetEventsAsync(startDate, endDate);
                 
                 // Preserve snooze settings from existing events
                 var updatedEvents = events.ToList();

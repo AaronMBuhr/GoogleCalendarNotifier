@@ -164,26 +164,21 @@ To use this application, you need OAuth 2.0 credentials:
         {
             Debug.WriteLine($"Getting upcoming events for next {lookAheadTime.TotalDays} days");
 
-            if (_calendarService == null)
-                throw new InvalidOperationException("Calendar service not initialized. Call InitializeAsync first.");
+            if (_calendarService == null || _tasksService == null)
+                throw new InvalidOperationException("Calendar or Tasks service not initialized. Call InitializeAsync first.");
 
             try
             {
                 var now = DateTime.Now;
-                Debug.WriteLine($"Current time: {now}");
+                var endDate = now.Add(lookAheadTime);
+                Debug.WriteLine($"Current time: {now}, fetching upcoming until {endDate}");
 
                 var events = new List<CalendarEvent>();
                 
-                // Get calendar events
-                await GetCalendarEvents(lookAheadTime, includeHolidays, now, events);
-                
-                // Get tasks if the service is available
-                if (_tasksService != null)
-                {
-                    await GetGoogleTasks(lookAheadTime, now, events);
-                }
+                await GetCalendarEventsInRange(now, endDate, includeHolidays, events);
+                await GetGoogleTasksInRange(now, endDate, events); // Use new ranged method
 
-                Debug.WriteLine($"Returning {events.Count} events (including tasks)");
+                Debug.WriteLine($"Returning {events.Count} events (including tasks) for upcoming period");
                 return events;
             }
             catch (Exception ex)
@@ -193,14 +188,14 @@ To use this application, you need OAuth 2.0 credentials:
             }
         }
         
-        private async System.Threading.Tasks.Task GetCalendarEvents(TimeSpan lookAheadTime, bool includeHolidays, DateTime now, List<CalendarEvent> events)
+        private async System.Threading.Tasks.Task GetCalendarEventsInRange(DateTime queryStartDate, DateTime queryEndDate, bool includeHolidays, List<CalendarEvent> events)
         {
             // First get the calendars to query
             var calendarListRequest = _calendarService.CalendarList.List();
             var calendarListResponse = await calendarListRequest.ExecuteAsync();
             var calendars = calendarListResponse.Items;
             
-            Debug.WriteLine($"Found {calendars.Count} calendars to query");
+            Debug.WriteLine($"Found {calendars.Count} calendars to query for range {queryStartDate:d} to {queryEndDate:d}");
             
             // Filter out holiday calendars if includeHolidays is false
             List<CalendarListEntry> calendarsToQuery;
@@ -223,14 +218,14 @@ To use this application, you need OAuth 2.0 credentials:
                 Debug.WriteLine($"Querying calendar: {calendar.Summary} (ID: {calendar.Id})");
                 
                 var request = _calendarService.Events.List(calendar.Id);
-                request.TimeMinDateTimeOffset = new DateTimeOffset(now);
-                request.TimeMaxDateTimeOffset = new DateTimeOffset(now.Add(lookAheadTime));
+                request.TimeMinDateTimeOffset = new DateTimeOffset(queryStartDate);
+                request.TimeMaxDateTimeOffset = new DateTimeOffset(queryEndDate);
                 request.ShowDeleted = false;
                 request.SingleEvents = true;
-                request.MaxResults = 250;
+                request.MaxResults = 2500; // Increased max results for potentially larger date ranges
                 request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
 
-                Debug.WriteLine($"Requesting events from {request.TimeMin} to {request.TimeMax}");
+                Debug.WriteLine($"Requesting events from {request.TimeMinDateTimeOffset} to {request.TimeMaxDateTimeOffset}");
 
                 var response = await request.ExecuteAsync();
                 Debug.WriteLine($"Retrieved {response.Items?.Count ?? 0} events from calendar {calendar.Summary}");
@@ -326,13 +321,19 @@ To use this application, you need OAuth 2.0 credentials:
             }
         }
         
-        private async System.Threading.Tasks.Task GetGoogleTasks(TimeSpan lookAheadTime, DateTime now, List<CalendarEvent> events)
+        // Refactored to take specific start and end dates for tasks
+        private async System.Threading.Tasks.Task GetGoogleTasksInRange(DateTime queryStartDate, DateTime queryEndDate, List<CalendarEvent> events)
         {
+            if (_tasksService == null) 
+            {
+                Debug.WriteLine("Tasks service not initialized, skipping task retrieval.");
+                return;
+            }
+
             try
             {
-                Debug.WriteLine("Retrieving Google Tasks...");
+                Debug.WriteLine($"Retrieving Google Tasks from {queryStartDate:d} to {queryEndDate:d}...");
                 
-                // Get all task lists
                 var taskListRequest = _tasksService.Tasklists.List();
                 var taskLists = await taskListRequest.ExecuteAsync();
                 
@@ -342,226 +343,109 @@ To use this application, you need OAuth 2.0 credentials:
                     return;
                 }
                 
-                Debug.WriteLine($"Found {taskLists.Items.Count} task lists");
-                
-                // Log task list details
                 foreach (var taskList in taskLists.Items)
                 {
-                    Debug.WriteLine($"Task list: ID={taskList.Id}, Title={taskList.Title}");
-                }
-                
-                var maxDate = now.Add(lookAheadTime);
-                
-                foreach (var taskList in taskLists.Items)
-                {
-                    Debug.WriteLine($"Processing task list: {taskList.Title}");
-                    
-                    // Get tasks for this list
                     var tasksRequest = _tasksService.Tasks.List(taskList.Id);
-                    tasksRequest.ShowCompleted = true; // Show both completed and incomplete tasks
+                    tasksRequest.ShowCompleted = true;
                     tasksRequest.MaxResults = 100;
+                    // RFC3339 format for DueMin and DueMax
+                    tasksRequest.DueMin = queryStartDate.ToUniversalTime().ToString("o"); 
+                    tasksRequest.DueMax = queryEndDate.ToUniversalTime().ToString("o");
                     
-                    Debug.WriteLine($"Requesting tasks from list {taskList.Title}");
+                    Debug.WriteLine($"Requesting tasks from list {taskList.Title} with DueMin: {tasksRequest.DueMin} and DueMax: {tasksRequest.DueMax}");
                     var tasks = await tasksRequest.ExecuteAsync();
                     
-                    if (tasks.Items == null)
-                    {
-                        Debug.WriteLine($"No tasks found in list {taskList.Title}");
-                        continue;
-                    }
-                    
-                    Debug.WriteLine($"Found {tasks.Items.Count} tasks in list {taskList.Title}");
-                    
-                    // Log all tasks in this list
-                    foreach (var task in tasks.Items)
-                    {
-                        Debug.WriteLine($"Task: ID={task.Id}, Title={task.Title}, Due={(task.Due ?? "null")}, Completed={(task.Completed ?? "null")}, Status={task.Status}");
-                    }
+                    if (tasks.Items == null) continue;
                     
                     foreach (var task in tasks.Items)
                     {
-                        if (string.IsNullOrEmpty(task.Due))
-                        {
-                            Debug.WriteLine($"Skipping task without due date: {task.Title}");
-                            continue;
-                        }
+                        if (string.IsNullOrEmpty(task.Due)) continue;
                         
                         try
                         {
-                            Debug.WriteLine($"Processing task with due date: {task.Title}, Due={task.Due}");
-                            
-                            // Different formats Google might return for dates
                             DateTime dueDate;
                             bool isDueMidnightUTC = false;
-                            
                             if (DateTime.TryParse(task.Due, out dueDate))
                             {
-                                Debug.WriteLine($"Successfully parsed due date: {dueDate}");
-                                Debug.WriteLine($"Original due string from Google: {task.Due}");
-                                
-                                // Check if the original UTC time was midnight before conversion
                                 if (task.Due.Contains("T00:00:00") && (task.Due.EndsWith("Z") || task.Due.Contains("+00:00")))
-                                {
                                     isDueMidnightUTC = true;
-                                    Debug.WriteLine("Task is due at midnight UTC - treating as date-only task");
-                                }
-                                
-                                // Google Tasks API returns dates in UTC - convert to local time
                                 if (task.Due.EndsWith("Z") || task.Due.Contains("+00:00"))
                                 {
-                                    // The date is in UTC, but DateTime.Parse doesn't set Kind correctly
-                                    // We need to explicitly specify the Kind before conversion
-                                    dueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc);
-                                    dueDate = dueDate.ToLocalTime();
-                                    Debug.WriteLine($"Converted UTC date to local: {dueDate}");
+                                    dueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc).ToLocalTime();
                                 }
                             }
-                            else
+                            else continue;
+
+                            // Additional client-side filtering as DueMin/DueMax might not be perfectly precise
+                            // or if tasks span across the midnight boundary in a way the API filter misses for local time.
+                            if (dueDate.Date < queryStartDate.Date || dueDate.Date > queryEndDate.Date) 
                             {
-                                Debug.WriteLine($"Failed to parse due date string: {task.Due}");
+                                Debug.WriteLine($"Skipping task {task.Title} due {dueDate:d} (client-side filter) as it's outside range {queryStartDate:d}-{queryEndDate:d}");
                                 continue;
                             }
                             
-                            // Skip tasks that are due beyond our look-ahead time
-                            if (dueDate > maxDate)
-                            {
-                                Debug.WriteLine($"Skipping task due beyond look-ahead time: {task.Title} due {dueDate}");
-                                continue;
-                            }
-                            
-                            // Skip tasks that are too old (more than 7 days in the past)
-                            if (dueDate < now.AddDays(-7))
-                            {
-                                Debug.WriteLine($"Skipping old task: {task.Title} due {dueDate}");
-                                continue;
-                            }
-                            
-                            // For tasks that Google reports with midnight UTC, they are likely date-only tasks
-                            // We need to preserve the original intended date
                             if (isDueMidnightUTC)
                             {
-                                // Extract the original date from the Google Task API string
-                                // Format is typically: "2025-05-09T00:00:00.000Z"
-                                string originalDatePart = task.Due.Split('T')[0]; // Gets "2025-05-09"
+                                string originalDatePart = task.Due.Split('T')[0];
                                 string[] dateParts = originalDatePart.Split('-');
-                                
-                                if (dateParts.Length == 3 && 
-                                    int.TryParse(dateParts[0], out int year) && 
-                                    int.TryParse(dateParts[1], out int month) && 
-                                    int.TryParse(dateParts[2], out int day))
+                                if (dateParts.Length == 3 && int.TryParse(dateParts[0], out int y) && int.TryParse(dateParts[1], out int m) && int.TryParse(dateParts[2], out int d))
                                 {
-                                    // Preserve the exact date from the original string
-                                    // Use 9:00 AM as the default time for tasks specified with only a date
-                                    dueDate = new DateTime(year, month, day, 9, 0, 0);
-                                    Debug.WriteLine($"Adjusted task to use original date at 9:00 AM: {dueDate}");
+                                    dueDate = new DateTime(y, m, d, 9, 0, 0);
                                 }
                             }
                             
-                            // Extract time information if available, otherwise assume beginning of day
-                            var dueTime = dueDate.TimeOfDay;
-                            var startTime = dueDate.Date.Add(dueTime);
-                            
-                            Debug.WriteLine($"Adding task: {task.Title} due {startTime}");
-                            
+                            var startTime = dueDate; 
                             var taskTitle = task.Title ?? "Untitled Task";
-                            
-                            // Special case logging for "Order Meds" task
-                            if (taskTitle.Contains("Order") && taskTitle.Contains("Med"))
-                            {
-                                Debug.WriteLine($"*** FOUND ORDER MEDS TASK: {taskTitle} due {startTime} ***");
-                            }
-                            
                             events.Add(new CalendarEvent
                             {
                                 Id = task.Id ?? Guid.NewGuid().ToString(),
                                 Title = taskTitle,
                                 Description = task.Notes ?? "",
                                 StartTime = startTime,
-                                EndTime = startTime.AddHours(1), // Assume 1 hour duration for tasks
-                                IsAllDay = dueTime.TotalMinutes == 0, // If no time specified, treat as all-day
-                                ReminderTime = TimeSpan.FromMinutes(30), // Default reminder time for tasks
+                                EndTime = startTime.AddHours(1),
+                                IsAllDay = startTime.TimeOfDay == TimeSpan.Zero && isDueMidnightUTC, 
+                                ReminderTime = TimeSpan.FromMinutes(30),
                                 CalendarId = taskList.Id,
                                 CalendarName = $"{taskList.Title} (Tasks)",
                                 IsHoliday = false,
                                 IsTask = true,
                                 IsCompleted = task.Status?.Equals("completed", StringComparison.OrdinalIgnoreCase) ?? false
                             });
-                            
-                            Debug.WriteLine($"Task added to event list: {task.Title}");
+                            Debug.WriteLine($"Added task to event list: {task.Title} due {startTime:g}");
                         }
                         catch (Exception ex)
                         {
                             Debug.WriteLine($"Error processing task {task.Title}: {ex.Message}");
-                            Debug.WriteLine($"Exception details: {ex}");
                         }
                     }
                 }
-                
-                // Also try to get tasks from calendar-based tasks
-                try
-                {
-                    Debug.WriteLine("Checking for calendar-based tasks...");
-                    
-                    // Some tasks appear as regular events with special markers
-                    var calendarEvents = events.Where(e => !e.IsTask && !e.IsHoliday).ToList();
-                    foreach (var evt in calendarEvents)
-                    {
-                        // Check if the event title or description contains task-related keywords
-                        var title = evt.Title.ToLowerInvariant();
-                        var desc = evt.Description.ToLowerInvariant();
-                        
-                        if (title.Contains("task") || title.Contains("todo") || 
-                            title.Contains("to do") || title.StartsWith("☐") ||
-                            title.StartsWith("□") || title.StartsWith("✓") ||
-                            title.Contains("order") || title.Contains("buy") ||
-                            title.Contains("pick up") || title.Contains("reminder"))
-                        {
-                            Debug.WriteLine($"Found potential task in calendar event: {evt.Title}");
-                            evt.IsTask = true;
-                        }
-                        
-                        // Special case for "Order Meds" event/task
-                        if (evt.Title.Contains("Order") && evt.Title.Contains("Med"))
-                        {
-                            Debug.WriteLine($"*** FOUND ORDER MEDS AS CALENDAR EVENT: {evt.Title} at {evt.StartTime} ***");
-                            evt.IsTask = true;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error checking for calendar-based tasks: {ex.Message}");
-                }
-                
-                Debug.WriteLine($"Added {events.Count(e => e.IsTask)} tasks to events list");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error retrieving tasks: {ex.Message}");
-                Debug.WriteLine($"Task retrieval error details: {ex}");
-                System.Windows.MessageBox.Show(
-                    $"Error retrieving tasks: {ex.Message}\n\nPlease check you have enabled the Tasks API in your Google Cloud project.",
-                    "Tasks API Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                Debug.WriteLine($"Error retrieving Google Tasks for range: {ex.Message}");
             }
         }
 
-        public System.Threading.Tasks.Task<IEnumerable<CalendarEvent>> GetEventsAsync(DateTime startDate, DateTime endDate, bool includeHolidays = true)
+        public async System.Threading.Tasks.Task<IEnumerable<CalendarEvent>> GetEventsAsync(DateTime startDate, DateTime endDate, bool includeHolidays = true)
         {
-            Debug.WriteLine($"Getting events between {startDate} and {endDate}");
+            Debug.WriteLine($"Getting events and tasks between {startDate:d} and {endDate:d}");
 
             if (_calendarService == null)
                 throw new InvalidOperationException("Calendar service not initialized. Call InitializeAsync first.");
 
             try
             {
-                return GetUpcomingEventsAsync(endDate - startDate, includeHolidays);
+                var events = new List<CalendarEvent>();
+                await GetCalendarEventsInRange(startDate, endDate, includeHolidays, events);
+                await GetGoogleTasksInRange(startDate, endDate, events); // Add call to fetch tasks for the range
+
+                Debug.WriteLine($"Returning {events.Count} calendar events and tasks for range {startDate:d} to {endDate:d}");
+                return events;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error in GetEventsAsync: {ex}");
-                throw new InvalidOperationException($"Failed to fetch calendar events: {ex.Message}", ex);
+                Debug.WriteLine($"Error in GetEventsAsync (range): {ex}");
+                throw new InvalidOperationException($"Failed to fetch calendar events and tasks for specific range: {ex.Message}", ex);
             }
         }
         

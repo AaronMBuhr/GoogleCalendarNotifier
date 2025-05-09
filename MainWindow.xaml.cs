@@ -42,6 +42,11 @@ namespace GoogleCalendarNotifier
         private bool _suppressSelectionChange = false;
         private bool _showHolidays = true; // Default to showing holidays
         
+        // Fields to track loaded date range
+        private DateTime _earliestLoadedDate;
+        private DateTime _latestLoadedDate;
+        private bool _isInitialLoad = true;
+        
         // Reference UI elements - use FindName to get references at runtime
         private WPFButton _refreshButton;
         private CustomCalendar _mainCalendar;
@@ -231,6 +236,12 @@ namespace GoogleCalendarNotifier
             {
                 _showHolidaysCheckBox.IsChecked = _showHolidays;
             }
+            
+            // Subscribe to calendar display month changed
+            if (_mainCalendar != null)
+            {
+                _mainCalendar.DisplayDateChanged += OnCalendarDisplayDateChanged;
+            }
         }
 
         private async void RefreshCalendar_Click(object sender, RoutedEventArgs e)
@@ -269,9 +280,23 @@ namespace GoogleCalendarNotifier
                 // Initialize Google Calendar service
                 await _calendarService.InitializeAsync();
                 
-                // Get events for the next 90 days (or whatever period is configured)
-                var lookAheadTime = TimeSpan.FromDays(90);
-                var events = await _calendarService.GetUpcomingEventsAsync(lookAheadTime, _showHolidays);
+                // Get the ExtentMonths setting from ConfigManager
+                int extentMonths = _configManager.GetExtentMonths();
+                
+                // Calculate date range: from start of current month to ExtentMonths months ahead
+                DateTime now = DateTime.Now;
+                DateTime startDate = new DateTime(now.Year, now.Month, 1); // Start of current month
+                DateTime endDate = startDate.AddMonths(extentMonths); // ExtentMonths from start of current month
+                
+                // Fetch events for the calculated date range
+                var events = await _calendarService.GetEventsAsync(startDate, endDate, _showHolidays);
+                
+                // Store the loaded date range
+                _earliestLoadedDate = startDate;
+                _latestLoadedDate = endDate;
+                _isInitialLoad = false;
+                
+                Debug.WriteLine($"Initial load date range: {_earliestLoadedDate:d} to {_latestLoadedDate:d}");
                 
                 _allEvents.Clear();
                 foreach (var evt in events)
@@ -393,6 +418,14 @@ namespace GoogleCalendarNotifier
             var today = DateTime.Today;
             var tomorrow = today.AddDays(1);
             var nextWeek = today.AddDays(7);
+            
+            // Set initial date range for test data
+            int extentMonths = _configManager?.GetExtentMonths() ?? 6;
+            _earliestLoadedDate = new DateTime(today.Year, today.Month, 1);
+            _latestLoadedDate = _earliestLoadedDate.AddMonths(extentMonths);
+            _isInitialLoad = false;
+            
+            Debug.WriteLine($"Test data date range: {_earliestLoadedDate:d} to {_latestLoadedDate:d}");
 
             _allEvents.Clear();
             _allEvents.Add(new CalendarEvent 
@@ -523,6 +556,15 @@ namespace GoogleCalendarNotifier
             {
                 Debug.WriteLine($"  Selected event: {selectedEvent.Title}");
                 _eventDetailsTextBox.Text = selectedEvent.Description;
+
+                // Update calendar selection
+                if (_mainCalendar != null)
+                {
+                    _suppressSelectionChange = true; 
+                    _mainCalendar.SelectedDate = selectedEvent.StartTime.Date;
+                    _mainCalendar.DisplayDate = selectedEvent.StartTime.Date; // Also update DisplayDate to ensure the calendar view navigates if necessary
+                    _suppressSelectionChange = false;
+                }
             }
             else
             {
@@ -610,6 +652,168 @@ namespace GoogleCalendarNotifier
                     // System.Windows.MessageBox.Show("Marking tasks as not completed is a UI-only change for now.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
+        }
+
+        private async void OnCalendarDisplayDateChanged(object sender, System.Windows.Controls.CalendarDateChangedEventArgs e)
+        {
+            if (_isInitialLoad) return; // Skip during initial load
+            
+            Debug.WriteLine($"Calendar display date changed to: {e.AddedDate:d}");
+            
+            DateTime newDisplayDate = e.AddedDate.GetValueOrDefault().Date;
+            
+            // Get the first and last day of the displayed month
+            DateTime firstDayOfMonth = new DateTime(newDisplayDate.Year, newDisplayDate.Month, 1);
+            DateTime lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+            
+            Debug.WriteLine($"First day of month: {firstDayOfMonth:d}, Last day of month: {lastDayOfMonth:d}");
+            Debug.WriteLine($"Currently loaded range: {_earliestLoadedDate:d} to {_latestLoadedDate:d}");
+            
+            try
+            {
+                // If we've navigated forward to an unloaded month
+                if (lastDayOfMonth > _latestLoadedDate)
+                {
+                    Debug.WriteLine("Navigated forward to unloaded month. Loading additional data...");
+                    await LoadAdditionalMonthsForward(firstDayOfMonth);
+                }
+                // If we've navigated backward to an unloaded month
+                else if (firstDayOfMonth < _earliestLoadedDate)
+                {
+                    Debug.WriteLine("Navigated backward to unloaded month. Loading additional data...");
+                    await LoadAdditionalMonthsBackward(firstDayOfMonth);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading additional data: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error loading additional calendar data: {ex.Message}",
+                    "Calendar Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        
+        private async Task LoadAdditionalMonthsForward(DateTime startOfMonth)
+        {
+            if (_refreshButton == null) return;
+            
+            try
+            {
+                _refreshButton.IsEnabled = false;
+                _refreshButton.Content = "Loading...";
+                
+                int extentMonths = _configManager.GetExtentMonths();
+                DateTime endDate = startOfMonth.AddMonths(extentMonths - 1);
+                
+                Debug.WriteLine($"Loading forward from {startOfMonth:d} to {endDate:d}");
+                
+                // Load and merge new events
+                await LoadAndMergeEvents(startOfMonth, endDate);
+                
+                // Update the latest loaded date
+                _latestLoadedDate = endDate;
+                
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+                throw; // Rethrow for outer handler
+            }
+        }
+        
+        private async Task LoadAdditionalMonthsBackward(DateTime endOfMonth)
+        {
+            if (_refreshButton == null) return;
+            
+            try
+            {
+                _refreshButton.IsEnabled = false;
+                _refreshButton.Content = "Loading...";
+                
+                int extentMonths = _configManager.GetExtentMonths();
+                DateTime startDate = endOfMonth.AddMonths(-(extentMonths - 1));
+                
+                Debug.WriteLine($"Loading backward from {startDate:d} to {endOfMonth:d}");
+                
+                // Load and merge new events
+                await LoadAndMergeEvents(startDate, endOfMonth);
+                
+                // Update the earliest loaded date
+                _earliestLoadedDate = startDate;
+                
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                _refreshButton.Content = "Refresh";
+                _refreshButton.IsEnabled = true;
+                throw; // Rethrow for outer handler
+            }
+        }
+        
+        private async Task LoadAndMergeEvents(DateTime startDate, DateTime endDate)
+        {
+            // Get events for the specified date range
+            var newEvents = await _calendarService.GetEventsAsync(startDate, endDate, _showHolidays);
+            
+            // Apply any existing snooze settings
+            foreach (var evt in newEvents)
+            {
+                evt.SnoozeUntil = _eventTrackingService.GetSnoozeTime(evt.Id);
+            }
+            
+            // Merge with existing events (avoid duplicates)
+            var existingEventIds = new HashSet<string>(_allEvents.Select(e => e.Id));
+            foreach (var evt in newEvents)
+            {
+                if (!existingEventIds.Contains(evt.Id))
+                {
+                    _allEvents.Add(evt);
+                }
+            }
+            
+            Debug.WriteLine($"Added {newEvents.Count(e => !existingEventIds.Contains(e.Id))} new events");
+            
+            // Re-sort events
+            var sortedEvents = _allEvents.OrderBy(e => e.StartTime.Date)
+                                      .ThenBy(e => e.StartTime.TimeOfDay)
+                                      .ToList();
+            
+            _allEvents.Clear();
+            foreach (var evt in sortedEvents)
+            {
+                _allEvents.Add(evt);
+            }
+            
+            // Update event grouping
+            _dateEvents = _allEvents.GroupBy(e => e.StartTime.Date)
+                                  .ToDictionary(g => g.Key, g => g.ToList());
+            
+            // Update calendar with new data
+            if (_mainCalendar != null)
+            {
+                _mainCalendar.SetDatesWithEvents(_dateEvents.Keys);
+                
+                // Set task dates separately
+                var taskDates = _allEvents
+                    .Where(e => e.IsTask)
+                    .Select(e => e.StartTime.Date)
+                    .Distinct();
+                _mainCalendar.SetDatesWithTasks(taskDates);
+                
+                // Set holiday dates separately
+                var holidayDates = _allEvents
+                    .Where(e => e.IsHoliday)
+                    .Select(e => e.StartTime.Date)
+                    .Distinct();
+                _mainCalendar.SetDatesWithHolidays(holidayDates);
+            }
+            
+            // Update monitor service with the full event list
+            _monitorService.SetEvents(_allEvents.ToList());
         }
     }
 } 
