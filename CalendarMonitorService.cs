@@ -18,7 +18,7 @@ namespace GoogleCalendarNotifier
         private DispatcherTimer _monitorTimer;
         private DispatcherTimer _refreshTimer;
         private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
-        private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(30);
+        private readonly TimeSpan _refreshInterval = TimeSpan.FromMinutes(5);
 
         public CalendarMonitorService(
             IGoogleCalendarService calendarService,
