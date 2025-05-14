@@ -1,4 +1,5 @@
 ﻿using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Responses;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
@@ -36,116 +37,138 @@ namespace GoogleCalendarNotifier
         private readonly string _credentialsPath = Path.Combine(AppDataPath, "credentials.json");
         private readonly string _tokenPath = Path.Combine(AppDataPath, "token.json"); // Store token here as well
 
+        private async System.Threading.Tasks.Task AuthorizeAndCreateServicesAsync()
+        {
+            using var stream = new FileStream(_credentialsPath, FileMode.Open, FileAccess.Read);
+            Debug.WriteLine("Loaded credentials.json for authorization attempt.");
+
+            var tokenDirectory = Path.GetDirectoryName(_tokenPath)!; 
+            Debug.WriteLine($"Using token directory: {tokenDirectory} for FileDataStore");
+
+            Debug.WriteLine("Starting OAuth authorization flow...");
+            var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+                GoogleClientSecrets.FromStream(stream).Secrets,
+                _scopes,
+                "user",
+                CancellationToken.None,
+                new FileDataStore(tokenDirectory, true)); 
+
+            Debug.WriteLine("Authorization completed successfully.");
+            Debug.WriteLine($"Token acquired for account: {credential.UserId}");
+
+            _calendarService = new CalendarService(new BaseClientService.Initializer()
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = _applicationName,
+            });
+
+            _tasksService = new TasksService(new BaseClientService.Initializer()
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = _applicationName,
+            });
+
+            Debug.WriteLine("Calendar and Tasks services created successfully.");
+
+            var testRequest = _calendarService.CalendarList.List();
+            var testResponse = await testRequest.ExecuteAsync();
+            Debug.WriteLine($"Successfully retrieved {testResponse.Items.Count} calendars for testing.");
+            
+            try
+            {
+                var taskListRequest = _tasksService.Tasklists.List();
+                var taskListResponse = await taskListRequest.ExecuteAsync();
+                Debug.WriteLine($"Successfully retrieved {taskListResponse.Items?.Count ?? 0} task lists for testing.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Warning: Could not access Tasks API during initial test: {ex.Message}");
+            }
+        }
+
+        private void DeleteStoredTokenFiles()
+        {
+            try
+            {
+                var tokenDirectory = Path.GetDirectoryName(_tokenPath)!;
+                // The FileDataStore stores files typically named like "Google.Apis.Auth.OAuth2.Responses.TokenResponse-user"
+                string tokenFileUserSpecific = Path.Combine(tokenDirectory, "Google.Apis.Auth.OAuth2.Responses.TokenResponse-user");
+                
+                if (File.Exists(tokenFileUserSpecific))
+                {
+                    File.Delete(tokenFileUserSpecific);
+                    Debug.WriteLine($"Deleted stale token file: {tokenFileUserSpecific}");
+                }
+                else
+                {
+                    Debug.WriteLine($"Stale token file not found at: {tokenFileUserSpecific}, checking for legacy token.json.");
+                    if (File.Exists(_tokenPath)) // Check for the legacy token.json
+                    {
+                        File.Delete(_tokenPath);
+                        Debug.WriteLine($"Deleted legacy token file: {_tokenPath}");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"Legacy token file not found at: {_tokenPath}");
+                    }
+                }
+            }
+            catch (Exception deleteEx)
+            {
+                Debug.WriteLine($"Error deleting token file(s): {deleteEx.Message}");
+                // Non-critical, can proceed.
+            }
+        }
+
         public async System.Threading.Tasks.Task InitializeAsync()
         {
             Debug.WriteLine("Initializing Google Calendar Service");
             try
             {
-                // Ensure the AppData directory exists
                 if (!Directory.Exists(AppDataPath))
                 {
                     Directory.CreateDirectory(AppDataPath);
                     Debug.WriteLine($"Created directory: {AppDataPath}");
                 }
                 
-                // Check if credentials.json exists in the AppData path
                 if (!File.Exists(_credentialsPath))
                 {
                     var errorMessage = $"credentials.json not found at {_credentialsPath}";
                     Debug.WriteLine(errorMessage);
-
-                    // Provide more detailed instructions
-                    var detailedInstructions = $"""
-{errorMessage}
-
-To use this application, you need OAuth 2.0 credentials:
-
-1. Go to Google Cloud Console (console.cloud.google.com).
-2. Select/create a project.
-3. Enable 'Google Calendar API' & 'Google Tasks API' (APIs & Services > Library).
-4. Configure 'OAuth consent screen' (add required scopes & test users).
-5. Create 'OAuth client ID' (Credentials > Create > OAuth client ID > Desktop app).
-6. Download the client secret JSON file.
-7. Rename the downloaded file to 'credentials.json'.
-8. Place 'credentials.json' in this directory:
-{AppDataPath}
-""";
-
-                    System.Windows.MessageBox.Show(
-                        detailedInstructions,
-                        "Missing Credentials File",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
+                    var detailedInstructions = $""""{errorMessage}\n\nTo use this application, you need OAuth 2.0 credentials:\n\n1. Go to Google Cloud Console (console.cloud.google.com).\n2. Select/create a project.\n3. Enable 'Google Calendar API' & 'Google Tasks API' (APIs & Services > Library).\n4. Configure 'OAuth consent screen' (add required scopes & test users).\n5. Create 'OAuth client ID' (Credentials > Create > OAuth client ID > Desktop app).\n6. Download the client secret JSON file.\n7. Rename the downloaded file to 'credentials.json'.\n8. Place 'credentials.json' in this directory:\n{AppDataPath}\n"""";
+                    System.Windows.MessageBox.Show(detailedInstructions, "Missing Credentials File", MessageBoxButton.OK, MessageBoxImage.Error);
                     throw new FileNotFoundException(errorMessage, _credentialsPath);
                 }
-
                 Debug.WriteLine($"Found credentials.json at {_credentialsPath}");
                 
-                // Get the token directory path (now using the AppData path)
-                var tokenDirectory = Path.GetDirectoryName(_tokenPath); // Use directory for FileDataStore
-                Debug.WriteLine($"Token directory: {tokenDirectory}");
-                
-                // Only force token refresh if we need to upgrade scopes - uncomment this block when changing required scopes
-                /*
-                if (Directory.Exists(tokenDirectory))
-                {
-                    Debug.WriteLine("Deleting existing token directory to refresh scopes");
-                    Directory.Delete(tokenDirectory, true);
-                }
-                */
+                await AuthorizeAndCreateServicesAsync(); // First attempt
+            }
+            catch (TokenResponseException tex) when (tex.Error != null && tex.Error.Error == "invalid_grant")
+            {
+                Debug.WriteLine($"Initial authorization failed with TokenResponseException (invalid_grant): {tex.Message}");
+                DeleteStoredTokenFiles();
 
-                using var stream = new FileStream(_credentialsPath, FileMode.Open, FileAccess.Read);
-                Debug.WriteLine("Loaded credentials.json");
+                System.Windows.MessageBox.Show(
+                    "Your Google authentication has expired or needs to be refreshed. The application will now attempt to guide you through the re-authentication process with Google. Please follow the prompts in your web browser.",
+                    "Re-authentication Required",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
 
-                Debug.WriteLine("Starting OAuth authorization flow...");
-                var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    GoogleClientSecrets.FromStream(stream).Secrets,
-                    _scopes,
-                    "user",
-                    CancellationToken.None,
-                    new FileDataStore(tokenDirectory, true)); // Pass the directory path
-
-                Debug.WriteLine("Authorization completed successfully");
-                Debug.WriteLine($"Token acquired for account: {credential.UserId}");
-
-                _calendarService = new CalendarService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = _applicationName,
-                });
-
-                _tasksService = new TasksService(new BaseClientService.Initializer()
-                {
-                    HttpClientInitializer = credential,
-                    ApplicationName = _applicationName,
-                });
-
-                Debug.WriteLine("Calendar and Tasks services created successfully");
-                
-                // Test if we can access the API
-                var testRequest = _calendarService.CalendarList.List();
-                var testResponse = await testRequest.ExecuteAsync();
-                Debug.WriteLine($"Successfully retrieved {testResponse.Items.Count} calendars");
-                foreach (var calendar in testResponse.Items)
-                {
-                    Debug.WriteLine($"Calendar: {calendar.Summary} (ID: {calendar.Id})");
-                }
-                
-                // Test task access
                 try
                 {
-                    var taskListRequest = _tasksService.Tasklists.List();
-                    var taskListResponse = await taskListRequest.ExecuteAsync();
-                    Debug.WriteLine($"Successfully retrieved {taskListResponse.Items?.Count ?? 0} task lists");
-                    
-                    foreach (var taskList in taskListResponse.Items ?? Enumerable.Empty<TaskList>())
-                    {
-                        Debug.WriteLine($"Task List: {taskList.Title} (ID: {taskList.Id})");
-                    }
+                    Debug.WriteLine("Attempting re-authorization...");
+                    await AuthorizeAndCreateServicesAsync(); // Second attempt
+                    Debug.WriteLine("Re-authorization successful.");
                 }
-                catch (Exception ex)
+                catch (Exception exReAuth)
                 {
-                    Debug.WriteLine($"Warning: Could not access Tasks API: {ex.Message}");
+                    Debug.WriteLine($"Re-authorization attempt failed: {exReAuth}");
+                    System.Windows.MessageBox.Show(
+                        $"Failed to re-authenticate with Google: {exReAuth.Message}\n\nPlease restart the application to try again or check your Google account settings.",
+                        "Re-authentication Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    throw; 
                 }
             }
             catch (Exception ex)

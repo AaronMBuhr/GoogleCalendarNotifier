@@ -25,6 +25,7 @@ using System.Drawing;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Windows.Forms; // Added for NotifyIcon
+using System.Windows.Controls; // Added for CalendarDateChangedEventArgs
 
 namespace GoogleCalendarNotifier
 {
@@ -46,6 +47,8 @@ namespace GoogleCalendarNotifier
         private DateTime _earliestLoadedDate;
         private DateTime _latestLoadedDate;
         private bool _isInitialLoad = true;
+        private DispatcherTimer _dayChangeTimer;
+        private DateTime _lastKnownDate = DateTime.MinValue;
         
         // Reference UI elements - use FindName to get references at runtime
         private WPFButton _refreshButton;
@@ -92,6 +95,9 @@ namespace GoogleCalendarNotifier
 
             // Initialize UI control references
             InitializeUIControls();
+
+            // Initialize and start the day change timer
+            InitializeDayChangeTimer();
 
             // Initialize real calendar data instead of test data
             // SetupTestData();  // Commented out test data
@@ -493,49 +499,15 @@ namespace GoogleCalendarNotifier
 
         private void OnCalendarSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) // Explicitly System.Windows.Controls
         {
-            Debug.WriteLine($"MainWindow: Calendar selection changed");
+            Debug.WriteLine($"MainWindow: Calendar selection changed. Suppressed: {_suppressSelectionChange}");
+            if (_suppressSelectionChange) return;
+
             if (_mainCalendar?.SelectedDate.HasValue == true)
             {
                 var selectedDate = _mainCalendar.SelectedDate.Value;
                 Debug.WriteLine($"  Selected date: {selectedDate:d}");
                 HighlightEventsByDate(selectedDate);
-
-                // Find events for the selected date
-                if (_dateEvents.TryGetValue(selectedDate.Date, out var dateEvents))
-                {
-                    // Select the first event for this date in the ListView
-                    _suppressSelectionChange = true;
-                    if (_eventsListView != null)
-                    {
-                        _eventsListView.SelectedItems.Clear();
-                        foreach (var evt in dateEvents)
-                        {
-                            _eventsListView.SelectedItems.Add(evt);
-                        }
-                        
-                        // Scroll the first event into view
-                        if (dateEvents.Any())
-                        {
-                            _eventsListView.ScrollIntoView(dateEvents[0]);
-                        }
-                    }
-                    _suppressSelectionChange = false;
-                }
-                else
-                {
-                    // No events on this date, clear selection
-                    _suppressSelectionChange = true;
-                    if (_eventsListView != null)
-                    {
-                        _eventsListView.SelectedItems.Clear();
-                    }
-                    _suppressSelectionChange = false;
-                    
-                    if (_eventDetailsTextBox != null)
-                    {
-                        _eventDetailsTextBox.Clear();
-                    }
-                }
+                UpdateEventListForDate(selectedDate); // Use the new helper method
             }
         }
 
@@ -654,7 +626,88 @@ namespace GoogleCalendarNotifier
             }
         }
 
-        private async void OnCalendarDisplayDateChanged(object sender, System.Windows.Controls.CalendarDateChangedEventArgs e)
+        private void InitializeDayChangeTimer()
+        {
+            _dayChangeTimer = new DispatcherTimer();
+            _dayChangeTimer.Interval = TimeSpan.FromSeconds(10); // Check every 10 seconds
+            _dayChangeTimer.Tick += DayChangeTimer_Tick;
+            _dayChangeTimer.Start();
+            // Initial check to set the date correctly on startup
+            DayChangeTimer_Tick(this, EventArgs.Empty);
+        }
+
+        private void DayChangeTimer_Tick(object sender, EventArgs e)
+        {
+            if (_lastKnownDate.Date != DateTime.Today)
+            {
+                Debug.WriteLine($"DayChangeTimer: Detected new day. Old: {_lastKnownDate.Date}, New: {DateTime.Today}");
+                _lastKnownDate = DateTime.Today;
+
+                if (_mainCalendar != null)
+                {
+                    // Suppress selection change events during programmatic update
+                    bool originalSuppress = _suppressSelectionChange;
+                    _suppressSelectionChange = true;
+                    
+                    _mainCalendar.DisplayDate = DateTime.Today;
+                    _mainCalendar.SelectedDate = DateTime.Today; // This should trigger OnCalendarSelectionChanged if the date is different
+                                                                // or if CustomCalendar internals ensure it.
+                                                                // OnCalendarSelectionChanged will call HighlightEventsByDate and UpdateEventListForDate.
+                    
+                    _suppressSelectionChange = originalSuppress;
+
+                    // If OnCalendarSelectionChanged didn't fire because selected date was already today
+                    // (e.g. app started on this day), we might need to manually refresh.
+                    // However, the logic in OnCalendarSelectionChanged *should* be called.
+                    // To be safe, explicitly call them if the selection change is suppressed.
+                    // Or, if _mainCalendar.SelectedDate was already DateTime.Today.
+                    // The initial call to DayChangeTimer_Tick on startup should handle the first load.
+                    // Subsequent calls to this method are for when the day *changes*.
+                    // When SelectedDate is set, OnCalendarSelectionChanged will run.
+                }
+            }
+        }
+        
+        // Helper method to consolidate logic from OnCalendarSelectionChanged for updating event list
+        private void UpdateEventListForDate(DateTime date)
+        {
+            Debug.WriteLine($"UpdateEventListForDate: Updating event list for date: {date:d}");
+            if (_eventsListView == null) return;
+
+            // Ensure we operate on the Date part only for dictionary lookup
+            DateTime dateOnly = date.Date;
+
+            if (_dateEvents.TryGetValue(dateOnly, out var dateEvents))
+            {
+                bool originalSuppress = _suppressSelectionChange;
+                _suppressSelectionChange = true;
+                _eventsListView.SelectedItems.Clear();
+                foreach (var evt in dateEvents)
+                {
+                    _eventsListView.SelectedItems.Add(evt);
+                }
+                
+                if (dateEvents.Any())
+                {
+                    _eventsListView.ScrollIntoView(dateEvents[0]);
+                }
+                 _suppressSelectionChange = originalSuppress;
+            }
+            else
+            {
+                bool originalSuppress = _suppressSelectionChange;
+                _suppressSelectionChange = true;
+                _eventsListView.SelectedItems.Clear();
+                _suppressSelectionChange = originalSuppress;
+                
+                if (_eventDetailsTextBox != null)
+                {
+                    _eventDetailsTextBox.Clear();
+                }
+            }
+        }
+
+        private void OnCalendarDisplayDateChanged(object sender, CalendarDateChangedEventArgs e)
         {
             if (_isInitialLoad) return; // Skip during initial load
             
@@ -675,13 +728,13 @@ namespace GoogleCalendarNotifier
                 if (lastDayOfMonth > _latestLoadedDate)
                 {
                     Debug.WriteLine("Navigated forward to unloaded month. Loading additional data...");
-                    await LoadAdditionalMonthsForward(firstDayOfMonth);
+                    LoadAdditionalMonthsForward(firstDayOfMonth);
                 }
                 // If we've navigated backward to an unloaded month
                 else if (firstDayOfMonth < _earliestLoadedDate)
                 {
                     Debug.WriteLine("Navigated backward to unloaded month. Loading additional data...");
-                    await LoadAdditionalMonthsBackward(firstDayOfMonth);
+                    LoadAdditionalMonthsBackward(firstDayOfMonth);
                 }
             }
             catch (Exception ex)
