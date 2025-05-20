@@ -41,11 +41,13 @@
             <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
             <local:TaskCompletionToTextDecorationConverter x:Key="TaskCompletionToTextDecorationConverter"/>
             <local:TaskStatusConverter x:Key="TaskStatusConverter"/>
+            <local:PastEventColorConverter x:Key="PastEventColorConverter"/>
 
             <!-- Custom colors -->
             <SolidColorBrush x:Key="OtherMonthBrush" Color="#FF404040"/>
             <SolidColorBrush x:Key="CurrentDayBrush" Color="#FF2D89EF"/>
             <SolidColorBrush x:Key="SelectedDayBrush" Color="#FF1E7145"/>
+            <SolidColorBrush x:Key="PastEventBrush" Color="#FF808080"/>
             
             <!-- Calendar Day Button Style -->
             <Style x:Key="CalendarDayButtonStyle" TargetType="CalendarDayButton">
@@ -265,6 +267,9 @@
                                                     <Binding Path="IsCompleted"/>
                                                 </MultiBinding>
                                             </TextBlock.TextDecorations>
+                                            <TextBlock.Foreground>
+                                                <Binding Path="StartTime" Converter="{StaticResource PastEventColorConverter}"/>
+                                            </TextBlock.Foreground>
                                         </TextBlock>
                                     </StackPanel>
                                 </DataTemplate>
@@ -273,14 +278,22 @@
                         <GridViewColumn Header="Date" Width="85">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding StartTime, StringFormat={}{0:MM/dd/yyyy}}"/>
+                                    <TextBlock Text="{Binding StartTime, StringFormat={}{0:MM/dd/yyyy}}">
+                                        <TextBlock.Foreground>
+                                            <Binding Path="StartTime" Converter="{StaticResource PastEventColorConverter}"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
                         <GridViewColumn Header="Time" Width="65">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding StartTime, StringFormat={}{0:HH:mm}}"/>
+                                    <TextBlock Text="{Binding StartTime, StringFormat={}{0:HH:mm}}">
+                                        <TextBlock.Foreground>
+                                            <Binding Path="StartTime" Converter="{StaticResource PastEventColorConverter}"/>
+                                        </TextBlock.Foreground>
+                                    </TextBlock>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
