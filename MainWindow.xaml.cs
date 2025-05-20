@@ -270,6 +270,23 @@ namespace GoogleCalendarNotifier
                 
                 _refreshButton.Content = "Refresh";
                 _refreshButton.IsEnabled = true;
+                
+                // Highlight today's events after refresh
+                if (_mainCalendar != null)
+                {
+                    // Select today's date in the calendar
+                    bool originalSuppress = _suppressSelectionChange;
+                    _suppressSelectionChange = true;
+                    _mainCalendar.SelectedDate = DateTime.Today;
+                    _mainCalendar.DisplayDate = DateTime.Today;
+                    _suppressSelectionChange = false;
+                    
+                    // Highlight today's events in the list
+                    HighlightEventsByDate(DateTime.Today);
+                    UpdateEventListForDate(DateTime.Today);
+                    
+                    Debug.WriteLine("Highlighted today's events after refresh");
+                }
             }
             catch (Exception ex)
             {
@@ -489,12 +506,25 @@ namespace GoogleCalendarNotifier
                     .Select(e => e.StartTime.Date)
                     .Distinct();
                 _mainCalendar.SetDatesWithHolidays(holidayDates);
+                
+                // Select today's date in the calendar
+                bool originalSuppress = _suppressSelectionChange;
+                _suppressSelectionChange = true;
+                _mainCalendar.SelectedDate = today;
+                _mainCalendar.DisplayDate = today;
+                _suppressSelectionChange = false;
             }
             
             if (_eventsListView != null)
             {
                 _eventsListView.ItemsSource = _allEvents;
             }
+            
+            // Highlight today's events in the list
+            HighlightEventsByDate(today);
+            UpdateEventListForDate(today);
+            
+            Debug.WriteLine("SetupTestData: Highlighted today's events");
         }
 
         private void OnCalendarSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) // Explicitly System.Windows.Controls
@@ -658,12 +688,11 @@ namespace GoogleCalendarNotifier
 
                     // If OnCalendarSelectionChanged didn't fire because selected date was already today
                     // (e.g. app started on this day), we might need to manually refresh.
-                    // However, the logic in OnCalendarSelectionChanged *should* be called.
-                    // To be safe, explicitly call them if the selection change is suppressed.
-                    // Or, if _mainCalendar.SelectedDate was already DateTime.Today.
-                    // The initial call to DayChangeTimer_Tick on startup should handle the first load.
-                    // Subsequent calls to this method are for when the day *changes*.
-                    // When SelectedDate is set, OnCalendarSelectionChanged will run.
+                    // Explicitly call the highlighting methods to ensure today's events are highlighted
+                    HighlightEventsByDate(DateTime.Today);
+                    UpdateEventListForDate(DateTime.Today);
+                    
+                    Debug.WriteLine("DayChangeTimer: Highlighted today's events for new day");
                 }
             }
         }
